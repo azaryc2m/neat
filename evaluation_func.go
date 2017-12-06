@@ -28,7 +28,8 @@ import (
 type EvaluationFunc func(*NeuralNetwork) float64
 
 // XORTest returns an XOR test as an evaluation function. The fitness is
-// measured with the total error, which should be minimized.
+// measured with the total error, which should be minimized. 
+// Trains the network to return values between 0.0 and 1.0, where <= 0.5 means 0 and > 0.5 means 1
 func XORTest() EvaluationFunc {
 	return func(n *NeuralNetwork) float64 {
 		score := 0.0
@@ -43,7 +44,10 @@ func XORTest() EvaluationFunc {
 		if err != nil {
 			log.Fatal(err)
 		}
-		score += math.Pow((output[0] - 0.0), 2.0)
+//		score += math.Pow((output[0] - 0.0), 2.0)
+		if output[0] < 0.0 || output[0] > 0.5 {
+			score += 1
+		}
 
 		// 0 xor 1
 		inputs[1] = 0.0
@@ -52,7 +56,10 @@ func XORTest() EvaluationFunc {
 		if err != nil {
 			log.Fatal(err)
 		}
-		score += math.Pow((output[0] - 1.0), 2.0)
+//		score += math.Pow((output[0] - 1.0), 2.0)
+		if output[0] <= 0.5 || output[0] > 1 {
+			score += 1
+		}
 
 		// 1 xor 0
 		inputs[1] = 1.0
@@ -61,7 +68,10 @@ func XORTest() EvaluationFunc {
 		if err != nil {
 			log.Fatal(err)
 		}
-		score += math.Pow((output[0] - 1.0), 2.0)
+//		score += math.Pow((output[0] - 1.0), 2.0)
+		if output[0] <= 0.5 || output[0] > 1{
+			score += 1
+		}
 
 		// 1 xor 1
 		inputs[1] = 1.0
@@ -70,7 +80,13 @@ func XORTest() EvaluationFunc {
 		if err != nil {
 			log.Fatal(err)
 		}
-		score += math.Pow((output[0] - 0.0), 2.0)
+//		score += math.Pow((output[0] - 0.0), 2.0)
+		if output[0] < 0.0 || output[0] > 0.5 {
+			score += 1
+		}
+		if score < 1.0{
+			score = 0
+		}
 
 		return score
 	}

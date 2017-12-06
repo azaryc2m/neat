@@ -7,6 +7,7 @@
 	"numGenerations": 50,
 	"populationSize": 50,
 	"initFitness": 9999.0,
+	"initConnWeight": 4.0,
 	"minimizeFitness": true,
 	"survivalRate": 0.3,
 	"stagnationLimit": 10,

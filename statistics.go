@@ -58,6 +58,6 @@ func (s *Statistics) Update(currGen int, n *NEAT) {
 		for _, genome := range n.Population {
 			avg += genome.Fitness
 		}
-		return avg / float64(n.Config.PopulationSize)
+		return avg / float64(len(n.Population))
 	}()
 }

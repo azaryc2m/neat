@@ -24,6 +24,10 @@ import (
 	"text/tabwriter"
 )
 
+var(
+	NeatConfig *Config
+)
+
 // Config consists of all hyperparameter settings for NEAT. It can be imported
 // from a JSON file.
 type Config struct {
@@ -33,6 +37,7 @@ type Config struct {
 
 	// neural network settings
 	NumInputs      int  `json:"numInputs"`      // number of inputs
+	InitConnWeight float64 `json:"initConnWeight"` // initial weight of new connections
 	NumOutputs     int  `json:"numOutputs"`     // number of outputs
 	FullyConnected bool `json:"fullyConnected"` // initially fully connected
 
@@ -91,6 +96,7 @@ func (c *Config) Summarize() {
 	fmt.Fprintf(w, "+ Number of inputs\t%d\t\n", c.NumInputs)
 	fmt.Fprintf(w, "+ Number of outputs\t%d\t\n", c.NumOutputs)
 	fmt.Fprintf(w, "+ Fully connected\t%t\t\n\n", c.FullyConnected)
+	fmt.Fprintf(w, "+ Max initial weight of new connections\t%.3f\t\n\n", c.InitConnWeight)
 
 	fmt.Fprintf(w, "General evolution settings\t\n")
 	fmt.Fprintf(w, "+ Number of generations\t%d\t\n", c.NumGenerations)

@@ -23,11 +23,14 @@ package neat
 // compatible with other genomes in the population, i.e., when a genome is not
 // compatible with any other species.
 type Species struct {
-	ID             int       // species ID
-	Stagnation     int       // number of generations of stagnation
-	Representative *Genome   // genome that represents this species (permanent)
-	BestFitness    float64   // best fitness score in this species
-	Members        []*Genome // member genomes
+	ID              int       // species ID
+	Stagnation      int       // number of generations of stagnation
+	Representative  *Genome   // genome that represents this species (permanent)
+	BestFitness     float64   // best fitness score in this species at the moment
+	BestEverFitness float64   // best fitness this species has ever scored
+	SharedFitness   float64   // Shared species fitness
+	Offspring       int       // Value representing how many children the species "deserves" to get when reproducing
+	Members         []*Genome // member genomes
 }
 
 // NewSpecies creates and returns a new instance of Species, given an initial
@@ -64,15 +67,20 @@ func (s *Species) Register(g *Genome, minimizeFitness bool) {
 
 // ExplicitFitnessSharing adjust this species' members fitness via explicit
 // fitness sharing.
-func (s *Species) ExplicitFitnessSharing() {
-	for _, genome := range s.Members {
-		// do not let its fitness be negative
-		if genome.Fitness < 0.0 {
-			genome.Fitness = 0.0001
-		}
-		genome.Fitness /= float64(len(s.Members))
-	}
-}
+//func (s *Species) Shared(bool minimizeFitness) {
+//	for _, genome := range s.Members {
+//		// do not let its fitness be negative
+//		if genome.Fitness < 0.0 {
+//			if minimizeFitness {
+//				genome.Fitness = 0.0
+//			} else {
+//				genome.Fitness = 0.0001
+//			}
+//		}
+//		if minimizeFitness
+//		genome.Fitness /= float64(len(s.Members))
+//	}
+//}
 
 // Flush empties the species membership, except for its representative.
 func (s *Species) Flush() {

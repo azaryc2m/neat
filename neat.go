@@ -22,6 +22,7 @@ import (
 	"math"
 	"math/rand"
 	"sort"
+	"time"
 )
 
 // NEAT is the implementation of NeuroEvolution of Augmenting Topology (NEAT).
@@ -39,11 +40,61 @@ type NEAT struct {
 	nextSpeciesID int // species ID that is assigned to a newly created species
 }
 
+// Wrapper to get the indexes of any sortable struct after sort
+type SortSlice struct {
+	sort.Interface
+	idx []int
+}
+
+func (s SortSlice) Swap(i, j int) {
+	s.Interface.Swap(i, j)
+	s.idx[i], s.idx[j] = s.idx[j], s.idx[i]
+}
+
+func SortFloat(f []float64) ([]float64, []int) {
+	fs := &SortSlice{Interface: sort.Float64Slice(f), idx: make([]int, len(f))}
+	sort.Sort(fs)
+	for i := range s.idx {
+		fs.idx[i] = i
+	}
+	return fs.Interface, fs.idx
+}
+
+func MinFloatSlice(fs ...float64) (m float64) {
+	m = 0.0
+	if len(fs) > 0 {
+		m = fs[0]
+	} else {
+		panic(0)
+	}
+	for _, e := range fs {
+		m = math.Min(m, e)
+	}
+	return
+}
+
+func MinIntSlice(fs ...int) (m int) {
+	m = 0
+	if len(fs) > 0 {
+		m = fs[0]
+	} else {
+		panic(0)
+	}
+	for _, e := range fs {
+		if e < m {
+			m = e
+		}
+	}
+	return
+}
+
 // New creates a new instance of NEAT with provided argument configuration and
 // an evaluation function.
 func New(config *Config, evaluation EvaluationFunc) *NEAT {
+	NeatConfig = config
 	nextGenomeID := 0
 	nextSpeciesID := 0
+	rand.Seed(int64(time.Now().Nanosecond()))
 
 	// in order to prevent containing multiple of the same activation function
 	// in the set of activation functions, they will temporarily be added to a
@@ -72,7 +123,7 @@ func New(config *Config, evaluation EvaluationFunc) *NEAT {
 		}
 	} else {
 		for i := 0; i < config.PopulationSize; i++ {
-			population[i] = NewGenome(nextGenomeID, config.NumInputs,
+			population[i] = NewGenome(nextGenomeID, cdataonfig.NumInputs,
 				config.NumOutputs, config.InitFitness)
 			nextGenomeID++
 		}
@@ -89,7 +140,7 @@ func New(config *Config, evaluation EvaluationFunc) *NEAT {
 		Species:       species,
 		Activations:   activations,
 		Evaluation:    evaluation,
-		Comparison:    NewComparisonFunc(config.MinimizeFitness),
+		Comparison:    NewComparisonFunc(),
 		Best:          population[rand.Intn(config.PopulationSize)].Copy(),
 		Statistics:    NewStatistics(config.NumGenerations),
 		nextGenomeID:  nextGenomeID,
@@ -145,6 +196,7 @@ func (n *NEAT) Evaluate() {
 //		Else STOP
 //
 func (n *NEAT) Speciate() {
+	// Divide into Species
 	for _, genome := range n.Population {
 		registered := false
 		for i := 0; i < len(n.Species) && !registered; i++ {
@@ -162,6 +214,66 @@ func (n *NEAT) Speciate() {
 			n.nextSpeciesID++
 		}
 	}
+
+	//Calculate Shared fitness
+	normSum := 0.0
+	for _, spec := range n.Species {
+		fitSum := 0.0
+		spec.BestFitness = spec.Members[0].Fitness
+		for i := 1; i < len(spec.Members); i++ {
+			fitSum += spec.Members[i].Fitness
+			if spec.BestFitness < spec.Members[i].Fitness {
+				spec.BestFitness = spec.Members[i].Fitness
+			}
+		}
+		//Get rid of stagnant species by setting their shared fitness
+		//to 0, so that they don't get to breed and get removed
+		//in the last step
+		if spec.BestFitness <= spec.BestEverFitness {
+			spec.Stagnation += 1
+			if spec.Stagnation >= n.Config.StagnationLimit {
+				fitSum = 0
+			}
+		} else {
+			//Reset the stagnation since the species is improving
+			spec.Stagnation = 0
+			spec.BestEverFitness = spec.BestFitness
+		}
+
+		//calculate species fitness
+		fitSum /= len(spec.Members)
+		spec.SharedFitness = fitSum
+		normSum += fitSum
+	}
+
+	//Normalize the shared fitness and calculate offspring
+	earnedKids := make([]float64, len(n.Species))
+	remainder = len(n.Population)
+	i := 0
+	for _, spec := range n.Species {
+		spec.SharedFitness /= normSum
+		earnedKids[i] = spec.SharedFitness * len(n.Population)
+		spec.Offspring = math.Floor(earnedKids[i])
+		earnedKids[i] -= spec.Offspring
+		remainder -= spec.Offspring
+		i++
+	}
+	//Sort the array to get the most cheated species by rounding
+	//And award them with the remainder rounding error
+	_, idx := SortFloat(earnedKids)
+	for r := 0; r < remainder; r++ {
+		n.Species[idx[len(idx)-1-r]].Offspring += 1
+	}
+
+	//remove species that didn't get to make any children
+	//means they are stagnant
+	for s := len(n.Species) - 1; s >= 0; s-- {
+		if n.Species[s].Offspring == 0 {
+			n.Species = append(n.Species[:s],
+				n.Species[s+1:]...)
+		}
+	}
+
 }
 
 // Reproduce performs reproduction of genomes in each species. Reproduction is
@@ -177,27 +289,37 @@ func (n *NEAT) Reproduce() {
 		// genomes in this species can inherit to the next generation, if two or
 		// more genomes survive in this species, and there is room for more
 		// children, i.e., at least one genome must be eliminated.
-		numSurvived := int(math.Ceil(float64(len(s.Members)) *
+		numSurvived := int(math.Floor(float64(len(s.Members)) *
 			n.Config.SurvivalRate))
 		numEliminated := len(s.Members) - numSurvived
 
 		// reproduction of this species is only executed, if there is enough room.
 		if numSurvived > 2 && numEliminated > 0 {
-			// adjust the fitness of each member genome of this species.
-			//s.ExplicitFitnessSharing()
 
+			//Sort the members by their fitness (better first)
 			sort.Slice(s.Members, func(i, j int) bool {
 				return n.Comparison(s.Members[i], s.Members[j])
 			})
+			//and kill the weakest
 			s.Members = s.Members[:numSurvived]
 
-			// fill the spaces that are made by eliminated genomes, by creating
-			// children.
-			for i := 0; i < numEliminated; i++ {
-				perm := rand.Perm(numSurvived)
-				p0 := s.Members[perm[0]] // parent 0
-				p1 := s.Members[perm[1]] // parent 1
+			//TODO: What about Elitism??
 
+			for i := 0; i < numEliminated; i++ {
+				perm0 := rand.Perm(numSurvived)
+				perm1 := rand.Perm(numSurvived)
+				
+				//get the minimum index from the random generated slice (best parent)
+				p0 := s.Members[MinIntSlice(perm0...)] // parent 0
+				p1 := s.Members[MinIntSlice(perm1...)] // parent 1
+				
+				//swap the parents so that the p0 is the better one
+				if n.Comparison(p1,p0) {
+					p0, p1 = p1, p0
+				}
+				
+				//REVIEWED TILL HERE
+				
 				// create a child from two chosen parents as a result of crossover;
 				// mutate the child given the rate of mutation of children.
 				child := Crossover(n.nextGenomeID, p0, p1, n.Config.InitFitness)
@@ -253,10 +375,19 @@ func (n *NEAT) Run() *Genome {
 	if n.Config.Verbose {
 		n.Config.Summarize()
 	}
-
+	n.Evaluate()
+	n.Speciate()
 	// for each generation
 	for i := 0; i < n.Config.NumGenerations; i++ {
+		// reproduce children genomes, evaluate and speciate them
+		n.Reproduce()
 		n.Evaluate()
+		n.Speciate()
+
+		//adjust species threshold to reach species number target
+		//		if i > 1 {
+		//			if len(n.Species
+		//		}
 
 		// update the best genome
 		for _, genome := range n.Population {
@@ -270,21 +401,24 @@ func (n *NEAT) Run() *Genome {
 			n.Summarize(i)
 		}
 
-		// speciate genomes and reproduce children genomes
-		n.Speciate()
-		n.Reproduce()
-
-		// eliminate stagnant species
-		if len(n.Species) > 1 {
-			var survived []*Species
-			for j := range n.Species {
-				if n.Species[j].Stagnation <= n.Config.StagnationLimit {
-					n.Species[j].Stagnation++
-					survived = append(survived, n.Species[j])
-				}
-			}
-			n.Species = survived
-		}
+		//		// eliminate stagnant species
+		//		if len(n.Species) > 1 {
+		//			var survived []*Species
+		//			var remainedPopulation []*Genome
+		//			for j := range n.Species {
+		//				if n.Species[j].Stagnation <= n.Config.StagnationLimit {
+		//					n.Species[j].Stagnation++
+		//					survived = append(survived, n.Species[j])
+		//					remainedPopulation = append(remainedPopulation, n.Species[j].Members...)
+		//				}
+		//			}
+		//			n.Species = survived
+		//			n.Population = remainedPopulation
+		//			if len(n.Population) == 0 {
+		//				fmt.Println("Everyone died :(")
+		//				return n.Best
+		//			}
+		//		}
 	}
 
 	return n.Best

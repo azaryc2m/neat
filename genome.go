@@ -111,7 +111,7 @@ func NewFCGenome(id, numInputs, numOutputs int, initFitness float64) *Genome {
 	for i := numInputs; i < numInputs+numOutputs; i++ {
 		outputNode := NewNodeGene(i, "output", ActivationSet["sigmoid"])
 		for j := 0; j < numInputs; j++ {
-			c := NewConnGene(j, i, rand.NormFloat64()*6.0)
+			c := NewConnGene(j, i, rand.NormFloat64()*NeatConfig.InitConnWeight)
 			connGenes = append(connGenes, c)
 		}
 		nodeGenes = append(nodeGenes, outputNode)
@@ -279,7 +279,7 @@ func (g *Genome) MutateAddConn(rate float64) {
 
 		if !g.pathExists(selectedNode1, selectedNode0) {
 			g.ConnGenes = append(g.ConnGenes, NewConnGene(selectedNode0,
-				selectedNode1, rand.NormFloat64()*6.0))
+				selectedNode1, rand.NormFloat64()*NeatConfig.InitConnWeight))
 		}
 
 	}
@@ -287,6 +287,7 @@ func (g *Genome) MutateAddConn(rate float64) {
 
 // pathExists returns true if there is a path from the source to the
 // destination. Helper method of MutateAddConn.
+// This variant only checks for direct connections.
 func (g *Genome) pathExists(src, dst int) bool {
 	if src == dst {
 		return true
@@ -294,9 +295,12 @@ func (g *Genome) pathExists(src, dst int) bool {
 
 	for _, edge := range g.ConnGenes {
 		if edge.From == src {
-			if g.pathExists(edge.To, dst) {
+			if edge.To == dst {
 				return true
 			}
+			//			if g.pathExists(edge.To, dst) {
+			//				return true
+			//			}
 		}
 	}
 
@@ -419,15 +423,12 @@ func Compatibility(g0, g1 *Genome, c0, c1 float64) float64 {
 // in terms of its fitness.
 type ComparisonFunc func(g0, g1 *Genome) bool
 
-// NewComparisonFunc returns a new comparison function, given an indicator of
-// whether the fitness is better when minimized.
-func NewComparisonFunc(minimize bool) ComparisonFunc {
-	if minimize {
-		return func(g0, g1 *Genome) bool {
-			return g0.Fitness < g1.Fitness
-		}
-	}
+// NewComparisonFunc returns a new comparison function
+// We stick to maximizing the fitness
+// if you wish to minimize it, you can still return 1/ff in your evaluation function
+func NewComparisonFunc() ComparisonFunc {
 	return func(g0, g1 *Genome) bool {
 		return g0.Fitness > g1.Fitness
 	}
+
 }

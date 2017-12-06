@@ -60,7 +60,7 @@ func (n *Neuron) String() string {
 
 // Activate retrieves signal from neurons that are connected to this neuron and
 // return its signal.
-func (n *Neuron) Activate() float64 {
+func (n *Neuron) ActivateFF() float64 {
 	// if the neuron's already activated, or it isn't connected from any neurons,
 	// return its current signal.
 	if n.activated || len(n.Synapses) == 0 {
@@ -70,7 +70,7 @@ func (n *Neuron) Activate() float64 {
 
 	inputSum := 0.0
 	for neuron, weight := range n.Synapses {
-		inputSum += neuron.Activate() * weight
+		inputSum += neuron.ActivateFF() * weight
 	}
 	n.Signal = n.Activation.Fn(inputSum)
 	return n.Signal
@@ -151,7 +151,7 @@ func (n *NeuralNetwork) FeedForward(inputs []float64) ([]float64, error) {
 	// recursively propagate from input neurons to output neurons
 	outputs := make([]float64, 0, len(n.outputNeurons))
 	for _, neuron := range n.outputNeurons {
-		outputs = append(outputs, neuron.Activate())
+		outputs = append(outputs, neuron.ActivateFF())
 	}
 
 	// reset all neurons
@@ -161,4 +161,10 @@ func (n *NeuralNetwork) FeedForward(inputs []float64) ([]float64, error) {
 	}
 
 	return outputs, nil
+}
+
+func (n *NeuralNetwork) ResetSignals() {
+	for _, neuron := range n.Neurons {
+		neuron.Signal = 0.0
+	}
 }
