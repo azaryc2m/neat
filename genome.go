@@ -26,6 +26,10 @@ import (
 	"time"
 )
 
+var (
+	Innovation int
+)
+
 // NodeGene is an implementation of each node in the graph representation of a
 // genome. Each node consists of a node ID, its type, and the activation type.
 type NodeGene struct {
@@ -59,12 +63,15 @@ type ConnGene struct {
 	To       int     `json:"to"`       // output node
 	Weight   float64 `json:"weight"`   // connection weight
 	Disabled bool    `json:"disabled"` // true if disabled
+
+	Generation int `json:"generation"` // generation in which this connection gene was created
+	Innovation int `json:"innovation"` // innovation number of this gene
 }
 
 // NewConnGene returns a new instance of ConnGene, given the input and output
 // node genes. By default, the connection is enabled.
 func NewConnGene(from, to int, weight float64) *ConnGene {
-	return &ConnGene{from, to, weight, false}
+	return &ConnGene{from, to, weight, false, 0, 0}
 }
 
 // Copy returns a deep copy of this connection gene.
@@ -89,11 +96,14 @@ func (c *ConnGene) String() string {
 // Genome encodes the weights and topology of the output network as a collection
 // of nodes and connection genes.
 type Genome struct {
-	ID        int         `json:"id"`        // genome ID
-	SpeciesID int         `json:"speciesID"` // genome's species ID
-	NodeGenes []*NodeGene `json:"nodeGenes"` // nodes in the genome
-	ConnGenes []*ConnGene `json:"connGenes"` // connections in the genome
-	Fitness   float64     `json:"fitness"`   // fitness score
+	ID          int         `json:"id"`          // genome ID
+	SpeciesID   int         `json:"speciesID"`   // genome's species ID
+	NodeGenes   []*NodeGene `json:"nodeGenes"`   // nodes in the genome
+	InputNodes  []*NodeGene `json:"inputNodes"`  // input nodes
+	HiddenNodes []*NodeGene `json:"hiddenNodes"` // hidden nodes
+	OutputNodes []*NodeGene `json:"outputNodes"` // output nodes
+	ConnGenes   []*ConnGene `json:"connGenes"`   // connections in the genome
+	Fitness     float64     `json:"fitness"`     // fitness score
 
 	evaluated bool // true if already evaluated
 }
@@ -102,51 +112,66 @@ type Genome struct {
 // and output layers.
 func NewFCGenome(id, numInputs, numOutputs int, initFitness float64) *Genome {
 	nodeGenes := make([]*NodeGene, 0, numInputs+numOutputs)
+	inputNodes := make([]*NodeGene, 0, numInputs)
+	outputNodes := make([]*NodeGene, 0, numOutputs)
 	connGenes := make([]*ConnGene, 0, numInputs*numOutputs)
+	innov := Innovation
 
 	for i := 0; i < numInputs; i++ {
 		inputNode := NewNodeGene(i, "input", ActivationSet["identity"])
 		nodeGenes = append(nodeGenes, inputNode)
+		inputNodes = append(inputNodes, inputNode)
 	}
 	for i := numInputs; i < numInputs+numOutputs; i++ {
 		outputNode := NewNodeGene(i, "output", ActivationSet["sigmoid"])
 		for j := 0; j < numInputs; j++ {
 			c := NewConnGene(j, i, rand.NormFloat64()*NeatConfig.InitConnWeight)
+			c.Innovation = innov
+			innov++
 			connGenes = append(connGenes, c)
 		}
 		nodeGenes = append(nodeGenes, outputNode)
+		outputNodes = append(outputNodes, outputNode)
 	}
 	return &Genome{
-		ID:        id,
-		SpeciesID: -1,
-		NodeGenes: nodeGenes,
-		ConnGenes: connGenes,
-		Fitness:   initFitness,
-		evaluated: false,
+		ID:          id,
+		SpeciesID:   -1,
+		NodeGenes:   nodeGenes,
+		InputNodes:  inputNodes,
+		HiddenNodes: make([]*NodeGene, 0),
+		OutputNodes: outputNodes,
+		ConnGenes:   connGenes,
+		Fitness:     initFitness,
+		evaluated:   false,
 	}
 }
 
 // NewGenome returns an instance of initial Genome with no initial connections.
 func NewGenome(id, numInputs, numOutputs int, initFitness float64) *Genome {
-	return &Genome{
-		ID:        id,
-		SpeciesID: -1,
-		NodeGenes: func() []*NodeGene {
-			nodeGenes := make([]*NodeGene, 0, numInputs+numOutputs)
+	nodeGenes := make([]*NodeGene, 0, numInputs+numOutputs)
+	inputNodes := make([]*NodeGene, 0, numInputs)
+	outputNodes := make([]*NodeGene, 0, numOutputs)
 
-			for i := 0; i < numInputs; i++ {
-				inputNode := NewNodeGene(i, "input", ActivationSet["identity"])
-				nodeGenes = append(nodeGenes, inputNode)
-			}
-			for i := numInputs; i < numInputs+numOutputs; i++ {
-				outputNode := NewNodeGene(i, "output", ActivationSet["sigmoid"])
-				nodeGenes = append(nodeGenes, outputNode)
-			}
-			return nodeGenes
-		}(),
-		ConnGenes: make([]*ConnGene, 0),
-		Fitness:   initFitness,
-		evaluated: false,
+	for i := 0; i < numInputs; i++ {
+		inputNode := NewNodeGene(i, "input", ActivationSet["identity"])
+		nodeGenes = append(nodeGenes, inputNode)
+		inputNodes = append(inputNodes, inputNode)
+	}
+	for i := numInputs; i < numInputs+numOutputs; i++ {
+		outputNode := NewNodeGene(i, "output", ActivationSet["sigmoid"])
+		nodeGenes = append(nodeGenes, outputNode)
+		outputNodes = append(outputNodes, outputNode)
+	}
+	return &Genome{
+		ID:          id,
+		SpeciesID:   -1,
+		NodeGenes:   nodeGenes,
+		InputNodes:  inputNodes,
+		HiddenNodes: make([]*NodeGene, 0),
+		OutputNodes: outputNodes,
+		ConnGenes:   make([]*ConnGene, 0),
+		Fitness:     initFitness,
+		evaluated:   false,
 	}
 }
 
@@ -224,88 +249,140 @@ func (g *Genome) ExportJSON(format bool) error {
 	return nil
 }
 
+func (g *Genome) MutateActFunc(id int, acts []*ActivationFunc) {
+	rNode := g.HiddenNodes[rand.Intn(len(g.HiddenNodes))]
+	rNode.Activation = acts[rand.Intn(len(acts))]
+	//adjust the connections to the new id that changed, when setting different activation function
+	for _, conn := range g.ConnGenes {
+		if conn.From == rNode.ID {
+			conn.From = id
+			conn.Innovation = Innovation
+			Innovation++
+		}
+		if conn.To == rNode.ID {
+			conn.To = id
+			conn.Innovation = Innovation
+			Innovation++
+		}
+	}
+	rNode.ID = id
+	g.evaluated = false
+}
+
+// Disable/ReEnable Connections
+func (g *Genome) MutateDisEnConn(enRate, disRate float64) {
+	for _, conn := range g.ConnGenes {
+		if conn.Disabled {
+			if rand.Float64() < enRate {
+				conn.Disabled = false
+				g.evaluated = false
+			}
+		} else {
+			if rand.Float64() < disRate {
+				conn.Disabled = true
+				g.evaluated = false
+			}
+		}
+	}
+}
+
 // MutatePerturb mutates the genome by perturbation of its weights by the
-// argument rate.
-func (g *Genome) MutatePerturb(rate float64) {
+// argument rate by the given mutation range (called rang, because range is a keyword).
+func (g *Genome) MutatePerturb(rate, rang, capt float64) {
 	// perturb connection weights
 	for _, conn := range g.ConnGenes {
 		if rand.Float64() < rate {
 			g.evaluated = false
-			conn.Weight += rand.NormFloat64()
+			conn.Weight += rand.NormFloat64() * rang
+			if conn.Weight > capt {
+				conn.Weight = capt
+			} else if conn.Weight < (-1.0 * capt) {
+				conn.Weight = (-1.0 * capt)
+			}
 		}
 	}
 }
 
 // MutateAddNode mutates the genome by adding a node with the argument
 // activation function.
-func (g *Genome) MutateAddNode(rate float64, activation *ActivationFunc) {
+func (g *Genome) MutateAddNode(id int, activation *ActivationFunc) {
 	// add node between two connected nodes, by randomly selecting a connection;
 	// only applied if there are connections in the genome
-	if rand.Float64() < rate && len(g.ConnGenes) != 0 {
-		g.evaluated = false
+	g.evaluated = false
 
-		selected := g.ConnGenes[rand.Intn(len(g.ConnGenes))]
-		newNode := NewNodeGene(len(g.NodeGenes), "hidden", ActivationSet["sigmoid"])
-
-		g.NodeGenes = append(g.NodeGenes, newNode)
-		g.ConnGenes = append(g.ConnGenes,
-			NewConnGene(selected.From, newNode.ID, 1.0),
-			NewConnGene(newNode.ID, selected.To, selected.Weight))
-		selected.Disabled = true
+	//get only active connections
+	active := make([]*ConnGene, len(g.ConnGenes))
+	for c := 0; c < len(g.ConnGenes); c++ {
+		if !g.ConnGenes[c].Disabled {
+			active[c] = g.ConnGenes[c]
+		}
 	}
+
+	selected := active[rand.Intn(len(active))]
+	newNode := NewNodeGene(len(g.NodeGenes), "hidden", activation)
+
+	g.NodeGenes = append(g.NodeGenes, newNode)
+	g.ConnGenes = append(g.ConnGenes,
+		&ConnGene{selected.From, newNode.ID, 1.0, false, 0, Innovation},
+		&ConnGene{newNode.ID, selected.To, selected.Weight, false, 0, Innovation})
+	Innovation += 2
+	selected.Disabled = true
 }
 
 // MutateAddConn mutates the genome by adding a connection.
-func (g *Genome) MutateAddConn(rate float64) {
+func (g *Genome) MutateAddConn() {
 	// add connection between two disconnected nodes; only applied if the selected
-	// nodes are not connected yet, and the resulting connection doesn't make the
-	// phenotype network recurrent
-	if rand.Float64() < rate {
-		g.evaluated = false
+	// nodes are not connected yet
+	tries := 5
+	g.evaluated = false
 
+	//TODO: improve determining the selected nodes by substracting forbidden node types from the others
+	for try := 0; try < tries; try++ {
 		selectedNode0 := g.NodeGenes[rand.Intn(len(g.NodeGenes))].ID
 		selectedNode1 := g.NodeGenes[rand.Intn(len(g.NodeGenes))].ID
 
+		if g.NodeGenes[selectedNode1].Type == "input" ||
+			g.NodeGenes[selectedNode0].Type == "output" {
+			continue
+		}
+
 		for _, conn := range g.ConnGenes {
 			if conn.From == selectedNode0 && conn.To == selectedNode1 {
-				return
+				continue
 			}
 		}
 
-		if g.NodeGenes[selectedNode1].Type == "input" ||
-			g.NodeGenes[selectedNode0].Type == "output" {
-			return
-		}
-
-		if !g.pathExists(selectedNode1, selectedNode0) {
-			g.ConnGenes = append(g.ConnGenes, NewConnGene(selectedNode0,
-				selectedNode1, rand.NormFloat64()*NeatConfig.InitConnWeight))
-		}
-
+		//			if !g.pathExists(selectedNode1, selectedNode0) {
+		g.ConnGenes = append(g.ConnGenes, &ConnGene{selectedNode0,
+			selectedNode1, rand.NormFloat64() * NeatConfig.InitConnWeight, false, 0, Innovation})
+		Innovation++
+		return
+		//			}
 	}
+
 }
 
 // pathExists returns true if there is a path from the source to the
 // destination. Helper method of MutateAddConn.
 // This variant only checks for direct connections.
-func (g *Genome) pathExists(src, dst int) bool {
-	if src == dst {
-		return true
-	}
-
-	for _, edge := range g.ConnGenes {
-		if edge.From == src {
-			if edge.To == dst {
-				return true
-			}
-			//			if g.pathExists(edge.To, dst) {
-			//				return true
-			//			}
-		}
-	}
-
-	return false
-}
+//func (g *Genome) pathExists(src, dst int) bool {
+//	if src == dst {
+//		return true
+//	}
+//
+//	for _, edge := range g.ConnGenes {
+//		if edge.From == src {
+//			if edge.To == dst {
+//				return true
+//			}
+//			//			if g.pathExists(edge.To, dst) {
+//			//				return true
+//			//			}
+//		}
+//	}
+//
+//	return false
+//}
 
 // Crossover returns a new child genome by performing crossover between the two
 // argument genomes.
@@ -320,6 +397,9 @@ func (g *Genome) pathExists(src, dst int) bool {
 // parent's connection by 50% chance. Otherwise, append the new connection.
 func Crossover(id int, g0, g1 *Genome, initFitness float64) *Genome {
 	innovations := make(map[[2]int]*ConnGene)
+	child := g0.Copy()
+	child.Fitness = initFitness
+	child.ID = id
 	for _, conn := range g0.ConnGenes {
 		innovations[[2]int{conn.From, conn.To}] = conn
 	}
@@ -329,33 +409,16 @@ func Crossover(id int, g0, g1 *Genome, initFitness float64) *Genome {
 			if rand.Float64() < 0.5 {
 				innovations[innov] = conn
 			}
-		} else {
-			innovations[innov] = conn
 		}
 	}
-
-	// copy node genes
-	largerParent := g0
-	if len(g0.NodeGenes) < len(g1.NodeGenes) {
-		largerParent = g1
-	}
-	nodeGenes := make([]*NodeGene, len(largerParent.NodeGenes))
-	for i := range largerParent.NodeGenes {
-		nodeGenes[i] = largerParent.NodeGenes[i].Copy()
-	}
-
 	// copy connection genes
 	connGenes := make([]*ConnGene, 0, len(innovations))
 	for _, conn := range innovations {
 		connGenes = append(connGenes, conn.Copy())
 	}
+	child.ConnGenes = connGenes
 
-	return &Genome{
-		ID:        id,
-		NodeGenes: nodeGenes,
-		ConnGenes: connGenes,
-		Fitness:   initFitness,
-	}
+	return child
 }
 
 // Compatibility computes the compatibility distance between two argument

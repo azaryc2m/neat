@@ -24,7 +24,7 @@ import (
 	"text/tabwriter"
 )
 
-var(
+var (
 	NeatConfig *Config
 )
 
@@ -36,24 +36,31 @@ type Config struct {
 	Verbose        bool   `json:"verbose"`        // verbose mode (terminal)
 
 	// neural network settings
-	NumInputs      int  `json:"numInputs"`      // number of inputs
+	NumInputs      int     `json:"numInputs"`      // number of inputs
 	InitConnWeight float64 `json:"initConnWeight"` // initial weight of new connections
-	NumOutputs     int  `json:"numOutputs"`     // number of outputs
-	FullyConnected bool `json:"fullyConnected"` // initially fully connected
+	NumOutputs     int     `json:"numOutputs"`     // number of outputs
+	FullyConnected bool    `json:"fullyConnected"` // initially fully connected
 
 	// evolution settings
 	NumGenerations  int     `json:"numGenerations"`  // number of generations
 	PopulationSize  int     `json:"populationSize"`  // size of population
+	TournamentSize  int     `json:"tournamentSize"`  // size of the tournament for parent pairs at reproducing
 	InitFitness     float64 `json:"initFitness"`     // initial fitness score
 	MinimizeFitness bool    `json:"minimizeFitness"` // true if minimizing fitness
 	SurvivalRate    float64 `json:"survivalRate"`    // survival rate
 	StagnationLimit int     `json:"stagnationLimit"` // limit of stagnation
 
-	// mutation rates settings
-	RatePerturb     float64 `json:"ratePerturb"`     // by perturbing weights
-	RateAddNode     float64 `json:"rateAddNode"`     // by adding a node
-	RateAddConn     float64 `json:"rateAddConn"`     // by adding a connection
-	RateMutateChild float64 `json:"rateMutateChild"` // mutation of a child
+	// mutation / reproduction rates settings
+	RatePerturb       float64 `json:"ratePerturb"`       // by perturbing weights
+	RangeMutWeight    float64 `json:"rangeMutWeight"`    // range in which the weight mutation is applied
+	CapWeight         float64 `json:"capWeight"`         // max weight cap
+	RateAddNode       float64 `json:"rateAddNode"`       // by adding a node
+	RateAddConn       float64 `json:"rateAddConn"`       // by adding a connection
+	RateEnableConn    float64 `json:"rateEnableConn"`    // rate to enable a connection
+	RateDisableConn   float64 `json:"rateDisableConn"`   // rate to disable a connection
+	RateMutateChild   float64 `json:"rateMutateChild"`   // mutation of a child
+	RateMutateActFunc float64 `json:"rateMutateActFunc"` // rate to mutate the activation function
+	RateCrossover     float64 `json:"rateCrossover"`     // crossover chance when reproducing
 
 	// compatibility distance coefficient settings
 	DistanceThreshold float64 `json:"distanceThreshold"` // distance threshold
@@ -101,13 +108,17 @@ func (c *Config) Summarize() {
 	fmt.Fprintf(w, "General evolution settings\t\n")
 	fmt.Fprintf(w, "+ Number of generations\t%d\t\n", c.NumGenerations)
 	fmt.Fprintf(w, "+ Population size\t%d\t\n", c.PopulationSize)
+	fmt.Fprintf(w, "+ Tournament size\t%d\t\n", c.TournamentSize)
 	fmt.Fprintf(w, "+ Initial fitness score\t%.3f\t\n", c.InitFitness)
 	fmt.Fprintf(w, "+ Fitness is being minimized\t%t\t\n", c.MinimizeFitness)
 	fmt.Fprintf(w, "+ Rate of survival each generation\t%.3f\t\n", c.SurvivalRate)
 	fmt.Fprintf(w, "+ Limit of species' stagnation\t%d\t\n\n", c.StagnationLimit)
+	fmt.Fprintf(w, "+ Rate of crossover at reproduction\t%.3f\t\n\n", c.RateCrossover)
 
 	fmt.Fprintf(w, "Mutation settings\t\n")
 	fmt.Fprintf(w, "+ Rate of perturbation of weights\t%.3f\t\n", c.RatePerturb)
+	fmt.Fprintf(w, "+ Range of weight mutation\t%.3f\t\n", c.RangeMutWeight)
+	fmt.Fprintf(w, "+ Cap on max connection weight\t%.3f\t\n", c.CapWeight)
 	fmt.Fprintf(w, "+ Rate of adding a node\t%.3f\t\n", c.RateAddNode)
 	fmt.Fprintf(w, "+ Rate of adding a connection\t%.3f\t\n", c.RateAddConn)
 	fmt.Fprintf(w, "+ Rate of mutating a child\t%.3f\t\n\n", c.RateMutateChild)

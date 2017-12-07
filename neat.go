@@ -54,10 +54,11 @@ func (s SortSlice) Swap(i, j int) {
 func SortFloat(f []float64) ([]float64, []int) {
 	fs := &SortSlice{Interface: sort.Float64Slice(f), idx: make([]int, len(f))}
 	sort.Sort(fs)
-	for i := range s.idx {
-		fs.idx[i] = i
+	r := make([]float64, len(f))
+	for in, it := range fs.idx {
+		r[in] = f[it]
 	}
-	return fs.Interface, fs.idx
+	return r, fs.idx
 }
 
 func MinFloatSlice(fs ...float64) (m float64) {
@@ -94,6 +95,7 @@ func New(config *Config, evaluation EvaluationFunc) *NEAT {
 	NeatConfig = config
 	nextGenomeID := 0
 	nextSpeciesID := 0
+	Innovation = 1
 	rand.Seed(int64(time.Now().Nanosecond()))
 
 	// in order to prevent containing multiple of the same activation function
@@ -121,9 +123,10 @@ func New(config *Config, evaluation EvaluationFunc) *NEAT {
 				config.NumOutputs, config.InitFitness)
 			nextGenomeID++
 		}
+		Innovation += len(population[0].ConnGenes)
 	} else {
 		for i := 0; i < config.PopulationSize; i++ {
-			population[i] = NewGenome(nextGenomeID, cdataonfig.NumInputs,
+			population[i] = NewGenome(nextGenomeID, config.NumInputs,
 				config.NumOutputs, config.InitFitness)
 			nextGenomeID++
 		}
@@ -241,20 +244,20 @@ func (n *NEAT) Speciate() {
 		}
 
 		//calculate species fitness
-		fitSum /= len(spec.Members)
+		fitSum /= float64(len(spec.Members))
 		spec.SharedFitness = fitSum
 		normSum += fitSum
 	}
 
 	//Normalize the shared fitness and calculate offspring
 	earnedKids := make([]float64, len(n.Species))
-	remainder = len(n.Population)
+	remainder := n.Config.PopulationSize
 	i := 0
 	for _, spec := range n.Species {
 		spec.SharedFitness /= normSum
-		earnedKids[i] = spec.SharedFitness * len(n.Population)
-		spec.Offspring = math.Floor(earnedKids[i])
-		earnedKids[i] -= spec.Offspring
+		earnedKids[i] = spec.SharedFitness * float64(n.Config.PopulationSize)
+		spec.Offspring = int(math.Floor(earnedKids[i]))
+		earnedKids[i] -= float64(spec.Offspring)
 		remainder -= spec.Offspring
 		i++
 	}
@@ -291,71 +294,86 @@ func (n *NEAT) Reproduce() {
 		// children, i.e., at least one genome must be eliminated.
 		numSurvived := int(math.Floor(float64(len(s.Members)) *
 			n.Config.SurvivalRate))
-		numEliminated := len(s.Members) - numSurvived
+//		numEliminated := len(s.Members) - numSurvived
 
 		// reproduction of this species is only executed, if there is enough room.
-		if numSurvived > 2 && numEliminated > 0 {
+		//		if numSurvived > 2 && numEliminated > 0 {
 
-			//Sort the members by their fitness (better first)
-			sort.Slice(s.Members, func(i, j int) bool {
-				return n.Comparison(s.Members[i], s.Members[j])
-			})
-			//and kill the weakest
-			s.Members = s.Members[:numSurvived]
+		//Sort the members by their fitness (better first)
+		sort.Slice(s.Members, func(i, j int) bool {
+			return n.Comparison(s.Members[i], s.Members[j])
+		})
+		//and kill the weakest
+		s.Members = s.Members[:numSurvived]
 
-			//TODO: What about Elitism??
+		//TODO: What about Elitism??
 
-			for i := 0; i < numEliminated; i++ {
-				perm0 := rand.Perm(numSurvived)
-				perm1 := rand.Perm(numSurvived)
-				
-				//get the minimum index from the random generated slice (best parent)
-				p0 := s.Members[MinIntSlice(perm0...)] // parent 0
-				p1 := s.Members[MinIntSlice(perm1...)] // parent 1
-				
-				//swap the parents so that the p0 is the better one
-				if n.Comparison(p1,p0) {
-					p0, p1 = p1, p0
-				}
-				
-				//REVIEWED TILL HERE
-				
-				// create a child from two chosen parents as a result of crossover;
-				// mutate the child given the rate of mutation of children.
-				child := Crossover(n.nextGenomeID, p0, p1, n.Config.InitFitness)
-				if rand.Float64() < n.Config.RateMutateChild {
-					child.MutatePerturb(n.Config.RatePerturb)
-					child.MutateAddNode(n.Config.RateAddNode, n.randActivationFunc())
-					child.MutateAddConn(n.Config.RateAddConn)
-				} else {
-					// if the two parents are identical, definitely mutate the child.
-					if p0.ID == p1.ID {
-						child.MutatePerturb(n.Config.RatePerturb)
-						child.MutateAddNode(n.Config.RateAddNode, n.randActivationFunc())
-						child.MutateAddConn(n.Config.RateAddConn)
-					}
-				}
+		for i := 0; i < s.Offspring; i++ {
+			//tournament
+			perm := make([]int, n.Config.TournamentSize)
+			for t := 0; t < n.Config.TournamentSize; t++ {
+				perm[t] = rand.Intn(numSurvived)
+			}
+			sort.Ints(perm)
+			//get the minimum index from the random generated slice (best parents)
+			p0 := s.Members[perm[0]] // parent 0
+			p1 := s.Members[perm[1]] // parent 1
+
+			// create a child from two chosen parents as a result of crossover
+			// but only with a given chance, and if the chosen parents are not the same
+			child := &Genome{}
+			if p0.ID == p1.ID || rand.Float64() > n.Config.RateCrossover {
+				child = p0
+			} else {
+				child = Crossover(n.nextGenomeID, p0, p1, n.Config.InitFitness)
 				n.nextGenomeID++
-
-				nextGeneration = append(nextGeneration, child)
 			}
 
-			// mutate all the genomes that survived.
-			for _, genome := range s.Members {
-				genome.MutatePerturb(n.Config.RatePerturb)
-				genome.MutateAddNode(n.Config.RateAddNode, n.randActivationFunc())
-				genome.MutateAddConn(n.Config.RateAddConn)
-				nextGeneration = append(nextGeneration, genome)
+			//REVIEWED TILL HERE
+
+			// mutate the child given the rate of mutation
+			//				if rand.Float64() < n.Config.RateMutateChild {
+			// this mutations are per item. So for example the chance to mutate
+			// a connection is checked for every connection, not just once
+			child.MutateDisEnConn(n.Config.RateEnableConn, n.Config.RateDisableConn)
+			child.MutatePerturb(n.Config.RatePerturb, n.Config.RangeMutWeight, n.Config.CapWeight)
+
+			//this mutations are checked once, so we check it here
+			if rand.Float64() < n.Config.RateAddNode && len(child.ConnGenes) != 0 {
+				child.MutateAddNode(n.nextGenomeID, n.randActivationFunc())
+				n.nextGenomeID++
 			}
-		} else {
-			// otherwise, they all survive, and mutate.
-			for _, genome := range s.Members {
-				genome.MutatePerturb(n.Config.RatePerturb)
-				genome.MutateAddNode(n.Config.RateAddNode, n.randActivationFunc())
-				genome.MutateAddConn(n.Config.RateAddConn)
-				nextGeneration = append(nextGeneration, genome)
+
+			if rand.Float64() < n.Config.RateAddConn {
+				child.MutateAddConn()
 			}
+
+			if len(child.HiddenNodes) > 0 && rand.Float64() < n.Config.RateMutateActFunc {
+				child.MutateActFunc(n.nextGenomeID, n.Activations)
+				n.nextGenomeID++
+			}
+
+			//				}
+
+			nextGeneration = append(nextGeneration, child)
 		}
+
+		//			// mutate all the genomes that survived.
+		//			for _, genome := range s.Members {
+		//				genome.MutatePerturb(n.Config.RatePerturb)
+		//				genome.MutateAddNode(n.Config.RateAddNode, n.randActivationFunc())
+		//				genome.MutateAddConn(n.Config.RateAddConn)
+		//				nextGeneration = append(nextGeneration, genome)
+		//			}
+		//		} else {
+		//			// otherwise, they all survive, and mutate.
+		//			for _, genome := range s.Members {
+		//				genome.MutatePerturb(n.Config.RatePerturb)
+		//				genome.MutateAddNode(n.Config.RateAddNode, n.randActivationFunc())
+		//				genome.MutateAddConn(n.Config.RateAddConn)
+		//				nextGeneration = append(nextGeneration, genome)
+		//			}
+		//		}
 
 		s.Flush()
 	}

@@ -87,8 +87,10 @@ func XORTest() EvaluationFunc {
 		if score < 1.0{
 			score = 0
 		}
-
-		return score
+		if score == 0 {
+			return 1.0 / 0.1
+		}
+		return 1.0/score
 	}
 }
 
