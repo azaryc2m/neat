@@ -51,14 +51,13 @@ func (s SortSlice) Swap(i, j int) {
 	s.idx[i], s.idx[j] = s.idx[j], s.idx[i]
 }
 
-func SortFloat(f []float64) ([]float64, []int) {
+func SortFloat(f []float64) ([]int) {
 	fs := &SortSlice{Interface: sort.Float64Slice(f), idx: make([]int, len(f))}
-	sort.Sort(fs)
-	r := make([]float64, len(f))
-	for in, it := range fs.idx {
-		r[in] = f[it]
+	for i := 0; i < len(f); i++ {
+		fs.idx[i] = i
 	}
-	return r, fs.idx
+	sort.Sort(fs)
+	return fs.idx
 }
 
 func MinFloatSlice(fs ...float64) (m float64) {
@@ -221,6 +220,9 @@ func (n *NEAT) Speciate() {
 	//Calculate Shared fitness
 	normSum := 0.0
 	for _, spec := range n.Species {
+		if len(spec.Members) < 1 {
+			fmt.Println("DAFUQ")
+		}
 		fitSum := 0.0
 		spec.BestFitness = spec.Members[0].Fitness
 		for i := 1; i < len(spec.Members); i++ {
@@ -263,9 +265,9 @@ func (n *NEAT) Speciate() {
 	}
 	//Sort the array to get the most cheated species by rounding
 	//And award them with the remainder rounding error
-	_, idx := SortFloat(earnedKids)
+	idx := SortFloat(earnedKids)
 	for r := 0; r < remainder; r++ {
-		n.Species[idx[len(idx)-1-r]].Offspring += 1
+		n.Species[idx[(len(idx)-1)-r]].Offspring += 1
 	}
 
 	//remove species that didn't get to make any children
@@ -307,8 +309,11 @@ func (n *NEAT) Reproduce() {
 		s.Members = s.Members[:numSurvived]
 
 		//TODO: What about Elitism??
+		
+		nextGeneration = append(nextGeneration, s.Members[0])
 
-		for i := 0; i < s.Offspring; i++ {
+		//start at 1 because we already added the best individual
+		for i := 1; i < s.Offspring; i++ {
 			//tournament
 			perm := make([]int, n.Config.TournamentSize)
 			for t := 0; t < n.Config.TournamentSize; t++ {

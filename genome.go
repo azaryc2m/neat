@@ -311,10 +311,10 @@ func (g *Genome) MutateAddNode(id int, activation *ActivationFunc) {
 	g.evaluated = false
 
 	//get only active connections
-	active := make([]*ConnGene, len(g.ConnGenes))
-	for c := 0; c < len(g.ConnGenes); c++ {
-		if !g.ConnGenes[c].Disabled {
-			active[c] = g.ConnGenes[c]
+	active := make([]*ConnGene, 0)
+	for _, conn := range g.ConnGenes {
+		if !conn.Disabled {
+			active = append(active, conn)
 		}
 	}
 
