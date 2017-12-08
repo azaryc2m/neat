@@ -1,20 +1,30 @@
 {
 	"experimentName": "",
-	"verbose": false,
+	"cppnActivations": ["sin","tanh"],
+	"verbose": true,
 	"numInputs": 0,
 	"numOutputs": 0,
-	"initConnWeight": 4,
+	"fullyConnected": true,
+	
 	"numGenerations": 0,
 	"populationSize": 0,
+	"tournamentSize": 3,
 	"initFitness": 0.0,
-	"minimizeFitness": false,
-	"survivalRate": 0.0,
-	"stagnationLimit": 100,
+	"initConnWeight": 0,
+	"survivalRate": 0.6,
+	"stagnationLimit": 0,
+	
+	"rateCrossover": 0.8,
 	"ratePerturb": 0.65,
-	"rateAddNode": 0.1,
+	"rangeMutWeight": 0.0,
+	"capWeight": 4.0,
+	"rateAddNode": 0.05,
 	"rateAddConn": 0.05,
-	"rateMutateChild": 0.25,
-	"distanceThreshold": 5,
+	"rateEnableConn": 0.1,
+	"rateDisableConn": 0.1,
+	
+	
+	"distanceThreshold": 3,
 	"coeffUnmatching": 1,
-	"coeffMatching": 0.5
+	"coeffMatching": 2
 }

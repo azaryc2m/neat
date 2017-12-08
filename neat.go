@@ -51,7 +51,7 @@ func (s SortSlice) Swap(i, j int) {
 	s.idx[i], s.idx[j] = s.idx[j], s.idx[i]
 }
 
-func SortFloat(f []float64) ([]int) {
+func SortFloat(f []float64) []int {
 	fs := &SortSlice{Interface: sort.Float64Slice(f), idx: make([]int, len(f))}
 	for i := 0; i < len(f); i++ {
 		fs.idx[i] = i
@@ -131,15 +131,10 @@ func New(config *Config, evaluation EvaluationFunc) *NEAT {
 		}
 	}
 
-	// initialize the first species with a randomly selected genome
-	s := NewSpecies(nextSpeciesID, population[rand.Intn(len(population))])
-	species := []*Species{s}
-	nextSpeciesID++
-
 	return &NEAT{
 		Config:        config,
 		Population:    population,
-		Species:       species,
+		Species:       []*Species{},
 		Activations:   activations,
 		Evaluation:    evaluation,
 		Comparison:    NewComparisonFunc(),
@@ -154,11 +149,11 @@ func New(config *Config, evaluation EvaluationFunc) *NEAT {
 func (n *NEAT) Summarize(gen int) {
 	// summary template
 	tmpl := "Gen. %4d | Num. Species: %4d | Best Fitness: %.4f | " +
-		"Avg. Fitness: %.4f"
+		"Avg. Fitness: %.4f | Pop. Size: %4d"
 
 	// compose each line of summary and the spacing of separating line
 	str := fmt.Sprintf(tmpl, gen, len(n.Species),
-		n.Best.Fitness, n.Statistics.AvgFitness[gen])
+		n.Best.Fitness, n.Statistics.AvgFitness[gen], len(n.Population))
 	spacing := int(math.Max(float64(len(str)), 80.0))
 
 	for i := 0; i < spacing; i++ {
@@ -198,6 +193,18 @@ func (n *NEAT) Evaluate() {
 //		Else STOP
 //
 func (n *NEAT) Speciate() {
+	// Set the new representative for the species and flush its members
+	if len(n.Species) < 1 {
+		// initialize the first species with a randomly selected genome
+		s := NewSpecies(n.nextSpeciesID, n.Population[rand.Intn(len(n.Population))])
+		n.Species = append(n.Species, s)
+		n.nextSpeciesID++
+	} else {
+		for _, s := range n.Species {
+			s.Flush()
+		}
+	}
+
 	// Divide into Species
 	for _, genome := range n.Population {
 		registered := false
@@ -206,7 +213,7 @@ func (n *NEAT) Speciate() {
 				n.Config.CoeffUnmatching, n.Config.CoeffMatching)
 
 			if dist <= n.Config.DistanceThreshold {
-				n.Species[i].Register(genome, n.Config.MinimizeFitness)
+				n.Species[i].Register(genome)
 				registered = true
 			}
 		}
@@ -221,9 +228,10 @@ func (n *NEAT) Speciate() {
 	normSum := 0.0
 	for _, spec := range n.Species {
 		if len(spec.Members) < 1 {
-			fmt.Println("DAFUQ")
+			//TODO: investigate why it's even possible for a species to have 0 members
+			fmt.Println("Members empty")
 		}
-		fitSum := 0.0
+		fitSum := spec.Members[0].Fitness
 		spec.BestFitness = spec.Members[0].Fitness
 		for i := 1; i < len(spec.Members); i++ {
 			fitSum += spec.Members[i].Fitness
@@ -254,20 +262,25 @@ func (n *NEAT) Speciate() {
 	//Normalize the shared fitness and calculate offspring
 	earnedKids := make([]float64, len(n.Species))
 	remainder := n.Config.PopulationSize
-	i := 0
-	for _, spec := range n.Species {
-		spec.SharedFitness /= normSum
-		earnedKids[i] = spec.SharedFitness * float64(n.Config.PopulationSize)
-		spec.Offspring = int(math.Floor(earnedKids[i]))
-		earnedKids[i] -= float64(spec.Offspring)
-		remainder -= spec.Offspring
-		i++
+	for i := 0; i < len(n.Species); i++ {
+		n.Species[i].SharedFitness /= normSum
+		earnedKids[i] = n.Species[i].SharedFitness * float64(n.Config.PopulationSize)
+		n.Species[i].Offspring = int(math.Floor(earnedKids[i]))
+		earnedKids[i] -= float64(n.Species[i].Offspring)
+		remainder -= n.Species[i].Offspring
 	}
 	//Sort the array to get the most cheated species by rounding
 	//And award them with the remainder rounding error
 	idx := SortFloat(earnedKids)
 	for r := 0; r < remainder; r++ {
-		n.Species[idx[(len(idx)-1)-r]].Offspring += 1
+		s := (len(idx) - 1) - r
+		//TODO: investigate how it can happen, that there are more remainders than species
+		//for now we award the most cheated species even more offspring
+		if s >= 0 {
+			n.Species[idx[s]].Offspring += 1
+		} else {
+			n.Species[idx[len(idx)-1]].Offspring += 1
+		}
 	}
 
 	//remove species that didn't get to make any children
@@ -294,12 +307,8 @@ func (n *NEAT) Reproduce() {
 		// genomes in this species can inherit to the next generation, if two or
 		// more genomes survive in this species, and there is room for more
 		// children, i.e., at least one genome must be eliminated.
-		numSurvived := int(math.Floor(float64(len(s.Members)) *
+		numSurvived := int(math.Ceil(float64(len(s.Members)) *
 			n.Config.SurvivalRate))
-//		numEliminated := len(s.Members) - numSurvived
-
-		// reproduction of this species is only executed, if there is enough room.
-		//		if numSurvived > 2 && numEliminated > 0 {
 
 		//Sort the members by their fitness (better first)
 		sort.Slice(s.Members, func(i, j int) bool {
@@ -308,8 +317,7 @@ func (n *NEAT) Reproduce() {
 		//and kill the weakest
 		s.Members = s.Members[:numSurvived]
 
-		//TODO: What about Elitism??
-		
+		// Elitism
 		nextGeneration = append(nextGeneration, s.Members[0])
 
 		//start at 1 because we already added the best individual
@@ -334,10 +342,6 @@ func (n *NEAT) Reproduce() {
 				n.nextGenomeID++
 			}
 
-			//REVIEWED TILL HERE
-
-			// mutate the child given the rate of mutation
-			//				if rand.Float64() < n.Config.RateMutateChild {
 			// this mutations are per item. So for example the chance to mutate
 			// a connection is checked for every connection, not just once
 			child.MutateDisEnConn(n.Config.RateEnableConn, n.Config.RateDisableConn)
@@ -357,30 +361,8 @@ func (n *NEAT) Reproduce() {
 				child.MutateActFunc(n.nextGenomeID, n.Activations)
 				n.nextGenomeID++
 			}
-
-			//				}
-
 			nextGeneration = append(nextGeneration, child)
 		}
-
-		//			// mutate all the genomes that survived.
-		//			for _, genome := range s.Members {
-		//				genome.MutatePerturb(n.Config.RatePerturb)
-		//				genome.MutateAddNode(n.Config.RateAddNode, n.randActivationFunc())
-		//				genome.MutateAddConn(n.Config.RateAddConn)
-		//				nextGeneration = append(nextGeneration, genome)
-		//			}
-		//		} else {
-		//			// otherwise, they all survive, and mutate.
-		//			for _, genome := range s.Members {
-		//				genome.MutatePerturb(n.Config.RatePerturb)
-		//				genome.MutateAddNode(n.Config.RateAddNode, n.randActivationFunc())
-		//				genome.MutateAddConn(n.Config.RateAddConn)
-		//				nextGeneration = append(nextGeneration, genome)
-		//			}
-		//		}
-
-		s.Flush()
 	}
 
 	// update the population with the new generation

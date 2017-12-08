@@ -46,7 +46,6 @@ type Config struct {
 	PopulationSize  int     `json:"populationSize"`  // size of population
 	TournamentSize  int     `json:"tournamentSize"`  // size of the tournament for parent pairs at reproducing
 	InitFitness     float64 `json:"initFitness"`     // initial fitness score
-	MinimizeFitness bool    `json:"minimizeFitness"` // true if minimizing fitness
 	SurvivalRate    float64 `json:"survivalRate"`    // survival rate
 	StagnationLimit int     `json:"stagnationLimit"` // limit of stagnation
 
@@ -58,7 +57,6 @@ type Config struct {
 	RateAddConn       float64 `json:"rateAddConn"`       // by adding a connection
 	RateEnableConn    float64 `json:"rateEnableConn"`    // rate to enable a connection
 	RateDisableConn   float64 `json:"rateDisableConn"`   // rate to disable a connection
-	RateMutateChild   float64 `json:"rateMutateChild"`   // mutation of a child
 	RateMutateActFunc float64 `json:"rateMutateActFunc"` // rate to mutate the activation function
 	RateCrossover     float64 `json:"rateCrossover"`     // crossover chance when reproducing
 
@@ -110,7 +108,6 @@ func (c *Config) Summarize() {
 	fmt.Fprintf(w, "+ Population size\t%d\t\n", c.PopulationSize)
 	fmt.Fprintf(w, "+ Tournament size\t%d\t\n", c.TournamentSize)
 	fmt.Fprintf(w, "+ Initial fitness score\t%.3f\t\n", c.InitFitness)
-	fmt.Fprintf(w, "+ Fitness is being minimized\t%t\t\n", c.MinimizeFitness)
 	fmt.Fprintf(w, "+ Rate of survival each generation\t%.3f\t\n", c.SurvivalRate)
 	fmt.Fprintf(w, "+ Limit of species' stagnation\t%d\t\n\n", c.StagnationLimit)
 	fmt.Fprintf(w, "+ Rate of crossover at reproduction\t%.3f\t\n\n", c.RateCrossover)
@@ -121,7 +118,6 @@ func (c *Config) Summarize() {
 	fmt.Fprintf(w, "+ Cap on max connection weight\t%.3f\t\n", c.CapWeight)
 	fmt.Fprintf(w, "+ Rate of adding a node\t%.3f\t\n", c.RateAddNode)
 	fmt.Fprintf(w, "+ Rate of adding a connection\t%.3f\t\n", c.RateAddConn)
-	fmt.Fprintf(w, "+ Rate of mutating a child\t%.3f\t\n\n", c.RateMutateChild)
 
 	fmt.Fprintf(w, "Compatibility distance settings\t\n")
 	fmt.Fprintf(w, "+ Distance threshold\t%.3f\t\n", c.DistanceThreshold)

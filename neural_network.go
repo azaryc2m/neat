@@ -24,11 +24,12 @@ import (
 
 // Neuron is an implementation of a single neuron of a neural network.
 type Neuron struct {
-	ID         int                 // neuron ID
-	Type       string              // neuron type
-	Signal     float64             // signal held by this neuron
-	Synapses   map[*Neuron]float64 // synapse from input neurons
-	Activation *ActivationFunc     // activation function
+	ID         int             // neuron ID
+	Type       string          // neuron type
+	Signal     float64         // signal held by this neuron
+	ConnGenes  []*ConnGene     // connections to this neuron
+	Synapses   map[int]*Neuron // synapse from input neurons
+	Activation *ActivationFunc // activation function
 
 	activated bool // true if it has been activated
 }
@@ -39,7 +40,7 @@ func NewNeuron(nodeGene *NodeGene) *Neuron {
 		ID:         nodeGene.ID,
 		Type:       nodeGene.Type,
 		Signal:     0.0,
-		Synapses:   make(map[*Neuron]float64),
+		Synapses:   make(map[int]*Neuron),
 		Activation: nodeGene.Activation,
 		activated:  false,
 	}
@@ -51,9 +52,10 @@ func (n *Neuron) String() string {
 		return fmt.Sprintf("[%s(%d, %s)]", n.Type, n.ID, n.Activation.Name)
 	}
 	str := fmt.Sprintf("[%s(%d, %s)] (\n", n.Type, n.ID, n.Activation.Name)
-	for neuron, weight := range n.Synapses {
+	for _, connGene := range n.ConnGenes {
+		neuron := n.Synapses[connGene.From]
 		str += fmt.Sprintf("  <--{%.3f}--[%s(%d, %s)]\n",
-			weight, neuron.Type, neuron.ID, neuron.Activation.Name)
+			connGene.Weight, neuron.Type, neuron.ID, neuron.Activation.Name)
 	}
 	return str + ")"
 }
@@ -63,14 +65,16 @@ func (n *Neuron) String() string {
 func (n *Neuron) ActivateFF() float64 {
 	// if the neuron's already activated, or it isn't connected from any neurons,
 	// return its current signal.
-	if n.activated || len(n.Synapses) == 0 {
+	if n.activated || len(n.ConnGenes) == 0 {
 		return n.Signal
 	}
 	n.activated = true
 
 	inputSum := 0.0
-	for neuron, weight := range n.Synapses {
-		inputSum += neuron.ActivateFF() * weight
+	for _, connGene := range n.ConnGenes {
+		neuron := n.Synapses[connGene.From]
+		//		fmt.Printf("%d %s - getting signal from %d %s\n", n.ID, n.Type, neuron.ID, neuron.Type)
+		inputSum += neuron.ActivateFF() * connGene.Weight
 	}
 	n.Signal = n.Activation.Fn(inputSum)
 	return n.Signal
@@ -107,6 +111,7 @@ func NewNeuralNetwork(g *Genome) *NeuralNetwork {
 		}
 
 		neurons = append(neurons, neuron)
+
 	}
 
 	for _, connGene := range g.ConnGenes {
@@ -117,7 +122,8 @@ func NewNeuralNetwork(g *Genome) *NeuralNetwork {
 				if out := sort.Search(len(neurons), func(i int) bool {
 					return neurons[i].ID >= connGene.To
 				}); out < len(neurons) && neurons[out].ID == connGene.To {
-					neurons[out].Synapses[neurons[in]] = connGene.Weight
+					neurons[out].ConnGenes = append(neurons[out].ConnGenes, connGene)
+					neurons[out].Synapses[connGene.From] = neurons[in]
 				}
 			}
 		}

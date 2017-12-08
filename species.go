@@ -49,40 +49,21 @@ func NewSpecies(id int, g *Genome) *Species {
 // Register adds an argument genome as a new member of this species; in
 // addition, if the new member genome outperforms this species' best genome, it
 // replaces the best genome in this species.
-func (s *Species) Register(g *Genome, minimizeFitness bool) {
+func (s *Species) Register(g *Genome) {
+	if g.ID == s.Representative.ID {
+		// we ignore it, cause the representative already is added as member
+		return
+	}
 	s.Members = append(s.Members, g)
 	g.SpeciesID = s.ID
-	if minimizeFitness {
-		if g.Fitness < s.BestFitness {
-			s.BestFitness = g.Fitness
-			s.Stagnation = 0
-		}
-	} else {
-		if g.Fitness > s.BestFitness {
-			s.BestFitness = g.Fitness
-			s.Stagnation = 0
-		}
-	}
 }
-
-// ExplicitFitnessSharing adjust this species' members fitness via explicit
-// fitness sharing.
-//func (s *Species) Shared(bool minimizeFitness) {
-//	for _, genome := range s.Members {
-//		// do not let its fitness be negative
-//		if genome.Fitness < 0.0 {
-//			if minimizeFitness {
-//				genome.Fitness = 0.0
-//			} else {
-//				genome.Fitness = 0.0001
-//			}
-//		}
-//		if minimizeFitness
-//		genome.Fitness /= float64(len(s.Members))
-//	}
-//}
 
 // Flush empties the species membership, except for its representative.
 func (s *Species) Flush() {
-	s.Members = []*Genome{}
+	//reassign the representative of this species
+	s.Representative = s.Members[0]
+	s.Members = []*Genome{s.Representative}
+	s.Offspring = 0
+	s.BestFitness = s.Representative.Fitness
+	s.SharedFitness = 0
 }

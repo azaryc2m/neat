@@ -317,7 +317,10 @@ func (g *Genome) MutateAddNode(id int, activation *ActivationFunc) {
 			active = append(active, conn)
 		}
 	}
-
+	if len(active) < 1 {
+		// no enabled connections so there is no point in adding a node now
+		return
+	}
 	selected := active[rand.Intn(len(active))]
 	newNode := NewNodeGene(len(g.NodeGenes), "hidden", activation)
 

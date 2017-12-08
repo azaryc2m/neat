@@ -28,11 +28,12 @@ import (
 type EvaluationFunc func(*NeuralNetwork) float64
 
 // XORTest returns an XOR test as an evaluation function. The fitness is
-// measured with the total error, which should be minimized. 
+// measured with the total error, which should be minimized.
 // Trains the network to return values between 0.0 and 1.0, where <= 0.5 means 0 and > 0.5 means 1
 func XORTest() EvaluationFunc {
 	return func(n *NeuralNetwork) float64 {
 		score := 0.0
+		errors := 0
 
 		inputs := make([]float64, 3)
 		inputs[0] = 1.0 // bias
@@ -44,9 +45,9 @@ func XORTest() EvaluationFunc {
 		if err != nil {
 			log.Fatal(err)
 		}
-//		score += math.Pow((output[0] - 0.0), 2.0)
+		score += math.Pow((output[0] - 0.0), 2.0)
 		if output[0] < 0.0 || output[0] > 0.5 {
-			score += 1
+			errors += 1
 		}
 
 		// 0 xor 1
@@ -56,9 +57,9 @@ func XORTest() EvaluationFunc {
 		if err != nil {
 			log.Fatal(err)
 		}
-//		score += math.Pow((output[0] - 1.0), 2.0)
+		score += math.Pow((output[0] - 1.0), 2.0)
 		if output[0] <= 0.5 || output[0] > 1 {
-			score += 1
+			errors += 1
 		}
 
 		// 1 xor 0
@@ -68,9 +69,9 @@ func XORTest() EvaluationFunc {
 		if err != nil {
 			log.Fatal(err)
 		}
-//		score += math.Pow((output[0] - 1.0), 2.0)
-		if output[0] <= 0.5 || output[0] > 1{
-			score += 1
+		score += math.Pow((output[0] - 1.0), 2.0)
+		if output[0] <= 0.5 || output[0] > 1 {
+			errors += 1
 		}
 
 		// 1 xor 1
@@ -80,17 +81,21 @@ func XORTest() EvaluationFunc {
 		if err != nil {
 			log.Fatal(err)
 		}
-//		score += math.Pow((output[0] - 0.0), 2.0)
+		score += math.Pow((output[0] - 0.0), 2.0)
 		if output[0] < 0.0 || output[0] > 0.5 {
-			score += 1
+			errors += 1
 		}
-		if score < 1.0{
-			score = 0
-		}
+
 		if score == 0 {
-			return 1.0 / 0.1
+			return 1.0 / 0.0001
 		}
-		return 1.0/score
+		
+		//if we assume, that everything > 0.5 is to be interpreted as 1 and everything below as 0, 
+		//then this is enough already and produces 0 errors
+		if errors == 0 {
+			return 1.0 / 0.001
+		}
+		return 1.0 / score
 	}
 }
 
