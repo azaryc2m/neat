@@ -50,19 +50,15 @@ func NewSpecies(id int, g *Genome) *Species {
 // addition, if the new member genome outperforms this species' best genome, it
 // replaces the best genome in this species.
 func (s *Species) Register(g *Genome) {
-	if g.ID == s.Representative.ID {
-		// we ignore it, cause the representative already is added as member
-		return
-	}
 	s.Members = append(s.Members, g)
 	g.SpeciesID = s.ID
 }
 
 // Flush empties the species membership, except for its representative.
 func (s *Species) Flush() {
-	//reassign the representative of this species
+	//reassign the representative of this species and empty the members list
 	s.Representative = s.Members[0]
-	s.Members = []*Genome{s.Representative}
+	s.Members = []*Genome{}
 	s.Offspring = 0
 	s.BestFitness = s.Representative.Fitness
 	s.SharedFitness = 0

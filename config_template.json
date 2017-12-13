@@ -1,6 +1,7 @@
 {
 	"experimentName": "",
-	"cppnActivations": ["sin","tanh"],
+	"cppnActivations": ["sigmoid"],
+	"outputActivation": "sigmoid",
 	"verbose": true,
 	"numInputs": 0,
 	"numOutputs": 0,
@@ -10,21 +11,24 @@
 	"populationSize": 0,
 	"tournamentSize": 3,
 	"initFitness": 0.0,
-	"initConnWeight": 0,
-	"survivalRate": 0.6,
-	"stagnationLimit": 0,
+	"initConnWeight": 1,
+	"survivalRate": 0.0,
 	
-	"rateCrossover": 0.8,
-	"ratePerturb": 0.65,
+	"rateCrossover": 0.0,
+	"ratePerturb": 0.0,
 	"rangeMutWeight": 0.0,
-	"capWeight": 4.0,
-	"rateAddNode": 0.05,
-	"rateAddConn": 0.05,
-	"rateEnableConn": 0.1,
-	"rateDisableConn": 0.1,
+	"capWeight": 0.0,
+	"rateAddNode": 0.0,
+	"rateAddConn": 0.0,
+	"rateEnableConn": 0.0,
+	"rateDisableConn": 0.0,
+	"rateMutateActFunc": 0.0,
 	
-	
-	"distanceThreshold": 3,
-	"coeffUnmatching": 1,
-	"coeffMatching": 2
+	"targetSpecies": 0,
+	"stagnationLimit": 0,
+	"distanceThreshold": 0,
+	"distanceMod": 0.0,
+	"minDistanceTreshold": 0,
+	"coeffUnmatching": 0,
+	"coeffMatching": 0
 }

@@ -31,28 +31,8 @@ Example
 
 This NEAT package is as simple as plug and play. All you have to do is to create
 a new instance of NEAT, given the configuration from a JSON file, for which the
-template is provided below, and an evaluation method of a neural network, and
+template is provided in "config_template.json" and an evaluation method of a neural network, and
 run.
-
-  {
-  	"experimentName": "XOR Test",
-  	"verbose": true,
-  	"numInputs": 3,
-  	"numOutputs": 1,
-  	"numGenerations": 50,
-  	"populationSize": 100,
-  	"initFitness": 9999.0,
-  	"minimizeFitness": true,
-  	"survivalRate": 0.5,
-  	"stagnationLimit": 5,
-  	"ratePerturb": 0.2,
-  	"rateAddNode": 0.2,
-  	"rateAddConn": 0.2,
-  	"rateMutateChild": 0.5,
-  	"distanceThreshold": 20.0,
-  	"coeffUnmatching": 1.0,
-  	"coeffMatching": 1.0
-  }
 
 Now that you have the configuration JSON file is ready as `config.json`, we can
 start experiment with NEAT. Below is an example XOR experiment.
@@ -82,8 +62,16 @@ start experiment with NEAT. Below is an example XOR experiment.
     // score that indicates its performance. This score is essentially a
     // genome's fitness score. With the configuration and the evaluation
     // function we defined, we can create a new instance of NEAT and start the
-    // evolution process.
-  	neat.New(config, neat.XORTest()).Run()
+    // evolution process. After successfull run, the function returns the best found genome.
+  	best := neat.New(config, neat.XORTest()).Run()
+
+  	// You can either save this genome for later use (export as Json for example)
+  	// or use it directly and create a NeuralNetwork with it, that can process data
+  	nn := neat.NewNeuralNetwork(best)
+
+  	// You can process data by using the FeedForward function. Here an example for 2 input nodes (+1 bias)
+  	// The output is an []float64 slice with the length equal to the number of output nodes
+  	output := nn.FeedForward([]float64{1.0, 1.0, 1.0})
   }
 */
 package neat

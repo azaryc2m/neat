@@ -101,9 +101,7 @@ func New(config *Config, evaluation EvaluationFunc) *NEAT {
 	// in the set of activation functions, they will temporarily be added to a
 	// map first, which contains Sigmoid function as a default, then be
 	// transferred to a slice of ActivationFunc.
-	temp := map[string]*ActivationFunc{
-		"sigmoid": Sigmoid(),
-	}
+	temp := map[string]*ActivationFunc{}
 
 	// if more additional activation functions are needed,
 	for _, name := range config.CPPNActivations {
@@ -119,14 +117,14 @@ func New(config *Config, evaluation EvaluationFunc) *NEAT {
 	if config.FullyConnected {
 		for i := 0; i < config.PopulationSize; i++ {
 			population[i] = NewFCGenome(nextGenomeID, config.NumInputs,
-				config.NumOutputs, config.InitFitness)
+				config.NumOutputs, config.InitFitness, config.OutputActivation)
 			nextGenomeID++
 		}
 		Innovation += len(population[0].ConnGenes)
 	} else {
 		for i := 0; i < config.PopulationSize; i++ {
 			population[i] = NewGenome(nextGenomeID, config.NumInputs,
-				config.NumOutputs, config.InitFitness)
+				config.NumOutputs, config.InitFitness, config.OutputActivation)
 			nextGenomeID++
 		}
 	}
@@ -174,24 +172,7 @@ func (n *NEAT) Evaluate() {
 	}
 }
 
-// Speciate performs speciation of each genome. The speciation mechanism is as
-// follows (from http://nn.cs.utexas.edu/downloads/papers/stanley.phd04.pdf):
-//
-//	The Genome Loop:
-//		Take next genome g from P
-//		The Species Loop:
-//			If all species in S have been checked:
-//				create new species snew and place g in it
-//			Else:
-//				get next species s from S
-//				If g is compatible with s:
-//					add g to s
-//			If g has not been placed:
-//				Species Loop
-//		If not all genomes in G have been placed:
-//			Genome Loop
-//		Else STOP
-//
+// Speciate performs speciation of each genome.
 func (n *NEAT) Speciate() {
 	// Set the new representative for the species and flush its members
 	if len(n.Species) < 1 {
@@ -200,6 +181,7 @@ func (n *NEAT) Speciate() {
 		n.Species = append(n.Species, s)
 		n.nextSpeciesID++
 	} else {
+		//set new representatives (seeds) and clear members list
 		for _, s := range n.Species {
 			s.Flush()
 		}
@@ -227,10 +209,13 @@ func (n *NEAT) Speciate() {
 	//Calculate Shared fitness
 	normSum := 0.0
 	for _, spec := range n.Species {
+
 		if len(spec.Members) < 1 {
-			//TODO: investigate why it's even possible for a species to have 0 members
-			fmt.Println("Members empty")
+			//species did extinct
+			spec.SharedFitness = 0
+			continue
 		}
+
 		fitSum := spec.Members[0].Fitness
 		spec.BestFitness = spec.Members[0].Fitness
 		for i := 1; i < len(spec.Members); i++ {
@@ -258,12 +243,13 @@ func (n *NEAT) Speciate() {
 		spec.SharedFitness = fitSum
 		normSum += fitSum
 	}
-
 	//Normalize the shared fitness and calculate offspring
 	earnedKids := make([]float64, len(n.Species))
 	remainder := n.Config.PopulationSize
 	for i := 0; i < len(n.Species); i++ {
-		n.Species[i].SharedFitness /= normSum
+		if normSum > 0.0 {
+			n.Species[i].SharedFitness /= normSum
+		}
 		earnedKids[i] = n.Species[i].SharedFitness * float64(n.Config.PopulationSize)
 		n.Species[i].Offspring = int(math.Floor(earnedKids[i]))
 		earnedKids[i] -= float64(n.Species[i].Offspring)
@@ -273,18 +259,11 @@ func (n *NEAT) Speciate() {
 	//And award them with the remainder rounding error
 	idx := SortFloat(earnedKids)
 	for r := 0; r < remainder; r++ {
-		s := (len(idx) - 1) - r
-		//TODO: investigate how it can happen, that there are more remainders than species
-		//for now we award the most cheated species even more offspring
-		if s >= 0 {
-			n.Species[idx[s]].Offspring += 1
-		} else {
-			n.Species[idx[len(idx)-1]].Offspring += 1
-		}
+		n.Species[idx[(len(idx)-1)-r]].Offspring += 1
 	}
 
 	//remove species that didn't get to make any children
-	//means they are stagnant
+	//means they are stagnant/extinct
 	for s := len(n.Species) - 1; s >= 0; s-- {
 		if n.Species[s].Offspring == 0 {
 			n.Species = append(n.Species[:s],
@@ -336,7 +315,9 @@ func (n *NEAT) Reproduce() {
 			// but only with a given chance, and if the chosen parents are not the same
 			child := &Genome{}
 			if p0.ID == p1.ID || rand.Float64() > n.Config.RateCrossover {
-				child = p0
+				child = p0.Copy()
+				child.ID = n.nextGenomeID
+				n.nextGenomeID++
 			} else {
 				child = Crossover(n.nextGenomeID, p0, p1, n.Config.InitFitness)
 				n.nextGenomeID++
@@ -390,9 +371,16 @@ func (n *NEAT) Run() *Genome {
 		n.Speciate()
 
 		//adjust species threshold to reach species number target
-		//		if i > 1 {
-		//			if len(n.Species
-		//		}
+		if i > 1 {
+			if len(n.Species) < n.Config.TargetSpecies {
+				n.Config.DistanceThreshold -= n.Config.DistanceMod
+			} else if len(n.Species) > n.Config.TargetSpecies {
+				n.Config.DistanceThreshold += n.Config.DistanceMod
+			}
+			if n.Config.DistanceThreshold < n.Config.MinDistanceTreshold {
+				n.Config.DistanceThreshold = n.Config.MinDistanceTreshold
+			}
+		}
 
 		// update the best genome
 		for _, genome := range n.Population {
@@ -401,29 +389,11 @@ func (n *NEAT) Run() *Genome {
 			}
 		}
 
+		// log progress
 		n.Statistics.Update(i, n)
 		if n.Config.Verbose {
 			n.Summarize(i)
 		}
-
-		//		// eliminate stagnant species
-		//		if len(n.Species) > 1 {
-		//			var survived []*Species
-		//			var remainedPopulation []*Genome
-		//			for j := range n.Species {
-		//				if n.Species[j].Stagnation <= n.Config.StagnationLimit {
-		//					n.Species[j].Stagnation++
-		//					survived = append(survived, n.Species[j])
-		//					remainedPopulation = append(remainedPopulation, n.Species[j].Members...)
-		//				}
-		//			}
-		//			n.Species = survived
-		//			n.Population = remainedPopulation
-		//			if len(n.Population) == 0 {
-		//				fmt.Println("Everyone died :(")
-		//				return n.Best
-		//			}
-		//		}
 	}
 
 	return n.Best

@@ -20,6 +20,7 @@ package neat
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"math/rand"
 	"os"
@@ -98,7 +99,7 @@ func (c *ConnGene) String() string {
 type Genome struct {
 	ID          int         `json:"id"`          // genome ID
 	SpeciesID   int         `json:"speciesID"`   // genome's species ID
-	NodeGenes   []*NodeGene `json:"nodeGenes"`   // nodes in the genome
+	NodeGenes   []*NodeGene `json:"nodeGenes"`   // all nodes
 	InputNodes  []*NodeGene `json:"inputNodes"`  // input nodes
 	HiddenNodes []*NodeGene `json:"hiddenNodes"` // hidden nodes
 	OutputNodes []*NodeGene `json:"outputNodes"` // output nodes
@@ -110,7 +111,7 @@ type Genome struct {
 
 // NewFCGenome returns an instance of initial Genome with fully connected input
 // and output layers.
-func NewFCGenome(id, numInputs, numOutputs int, initFitness float64) *Genome {
+func NewFCGenome(id, numInputs, numOutputs int, initFitness float64, outputActivation string) *Genome {
 	nodeGenes := make([]*NodeGene, 0, numInputs+numOutputs)
 	inputNodes := make([]*NodeGene, 0, numInputs)
 	outputNodes := make([]*NodeGene, 0, numOutputs)
@@ -123,7 +124,7 @@ func NewFCGenome(id, numInputs, numOutputs int, initFitness float64) *Genome {
 		inputNodes = append(inputNodes, inputNode)
 	}
 	for i := numInputs; i < numInputs+numOutputs; i++ {
-		outputNode := NewNodeGene(i, "output", ActivationSet["sigmoid"])
+		outputNode := NewNodeGene(i, "output", ActivationSet[outputActivation])
 		for j := 0; j < numInputs; j++ {
 			c := NewConnGene(j, i, rand.NormFloat64()*NeatConfig.InitConnWeight)
 			c.Innovation = innov
@@ -147,7 +148,7 @@ func NewFCGenome(id, numInputs, numOutputs int, initFitness float64) *Genome {
 }
 
 // NewGenome returns an instance of initial Genome with no initial connections.
-func NewGenome(id, numInputs, numOutputs int, initFitness float64) *Genome {
+func NewGenome(id, numInputs, numOutputs int, initFitness float64, outputActivation string) *Genome {
 	nodeGenes := make([]*NodeGene, 0, numInputs+numOutputs)
 	inputNodes := make([]*NodeGene, 0, numInputs)
 	outputNodes := make([]*NodeGene, 0, numOutputs)
@@ -158,7 +159,7 @@ func NewGenome(id, numInputs, numOutputs int, initFitness float64) *Genome {
 		inputNodes = append(inputNodes, inputNode)
 	}
 	for i := numInputs; i < numInputs+numOutputs; i++ {
-		outputNode := NewNodeGene(i, "output", ActivationSet["sigmoid"])
+		outputNode := NewNodeGene(i, "output", ActivationSet[outputActivation])
 		nodeGenes = append(nodeGenes, outputNode)
 		outputNodes = append(outputNodes, outputNode)
 	}
@@ -249,6 +250,18 @@ func (g *Genome) ExportJSON(format bool) error {
 	return nil
 }
 
+func ImportJSON(jsonReader io.Reader) (*Genome, error) {
+	g := &Genome{}
+	decoder := json.NewDecoder(jsonReader)
+	if err := decoder.Decode(g); err != nil {
+		return &Genome{}, err
+	}
+	for _, node := range g.NodeGenes {
+		node.Activation = ActivationSet[node.Activation.Name]
+	}
+	return g, nil
+}
+
 func (g *Genome) MutateActFunc(id int, acts []*ActivationFunc) {
 	rNode := g.HiddenNodes[rand.Intn(len(g.HiddenNodes))]
 	rNode.Activation = acts[rand.Intn(len(acts))]
@@ -325,6 +338,7 @@ func (g *Genome) MutateAddNode(id int, activation *ActivationFunc) {
 	newNode := NewNodeGene(len(g.NodeGenes), "hidden", activation)
 
 	g.NodeGenes = append(g.NodeGenes, newNode)
+	g.HiddenNodes = append(g.HiddenNodes, newNode)
 	g.ConnGenes = append(g.ConnGenes,
 		&ConnGene{selected.From, newNode.ID, 1.0, false, 0, Innovation},
 		&ConnGene{newNode.ID, selected.To, selected.Weight, false, 0, Innovation})
@@ -341,51 +355,29 @@ func (g *Genome) MutateAddConn() {
 
 	//TODO: improve determining the selected nodes by substracting forbidden node types from the others
 	for try := 0; try < tries; try++ {
-		selectedNode0 := g.NodeGenes[rand.Intn(len(g.NodeGenes))].ID
-		selectedNode1 := g.NodeGenes[rand.Intn(len(g.NodeGenes))].ID
+		selectedNode0 := g.NodeGenes[rand.Intn(len(g.NodeGenes))]
+		selectedNode1 := g.NodeGenes[rand.Intn(len(g.NodeGenes))]
 
-		if g.NodeGenes[selectedNode1].Type == "input" ||
-			g.NodeGenes[selectedNode0].Type == "output" {
+		if selectedNode1.Type == "input" ||
+			selectedNode0.Type == "output" {
 			continue
 		}
 
 		for _, conn := range g.ConnGenes {
-			if conn.From == selectedNode0 && conn.To == selectedNode1 {
+			if conn.From == selectedNode0.ID && conn.To == selectedNode1.ID {
 				continue
 			}
 		}
 
 		//			if !g.pathExists(selectedNode1, selectedNode0) {
-		g.ConnGenes = append(g.ConnGenes, &ConnGene{selectedNode0,
-			selectedNode1, rand.NormFloat64() * NeatConfig.InitConnWeight, false, 0, Innovation})
+		g.ConnGenes = append(g.ConnGenes, &ConnGene{selectedNode0.ID,
+			selectedNode1.ID, rand.NormFloat64() * NeatConfig.InitConnWeight, false, 0, Innovation})
 		Innovation++
 		return
 		//			}
 	}
 
 }
-
-// pathExists returns true if there is a path from the source to the
-// destination. Helper method of MutateAddConn.
-// This variant only checks for direct connections.
-//func (g *Genome) pathExists(src, dst int) bool {
-//	if src == dst {
-//		return true
-//	}
-//
-//	for _, edge := range g.ConnGenes {
-//		if edge.From == src {
-//			if edge.To == dst {
-//				return true
-//			}
-//			//			if g.pathExists(edge.To, dst) {
-//			//				return true
-//			//			}
-//		}
-//	}
-//
-//	return false
-//}
 
 // Crossover returns a new child genome by performing crossover between the two
 // argument genomes.
@@ -466,7 +458,8 @@ func Compatibility(g0, g1 *Genome, c0, c1 float64) float64 {
 
 	// repeat for g0's innovations, to count unmatching connection genes for g1.
 	for _, conn := range g1.ConnGenes {
-		if innov0[[2]int{conn.From, conn.To}] == nil {
+		innov := innov0[[2]int{conn.From, conn.To}]
+		if innov == nil {
 			unmatchingCount++
 		}
 	}

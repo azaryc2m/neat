@@ -62,10 +62,10 @@ func (n *Neuron) String() string {
 
 // Activate retrieves signal from neurons that are connected to this neuron and
 // return its signal.
-func (n *Neuron) ActivateFF() float64 {
+func (n *Neuron) Activate() float64 {
 	// if the neuron's already activated, or it isn't connected from any neurons,
 	// return its current signal.
-	if n.activated || len(n.ConnGenes) == 0 {
+	if n.activated || len(n.Synapses) == 0 {
 		return n.Signal
 	}
 	n.activated = true
@@ -73,8 +73,7 @@ func (n *Neuron) ActivateFF() float64 {
 	inputSum := 0.0
 	for _, connGene := range n.ConnGenes {
 		neuron := n.Synapses[connGene.From]
-		//		fmt.Printf("%d %s - getting signal from %d %s\n", n.ID, n.Type, neuron.ID, neuron.Type)
-		inputSum += neuron.ActivateFF() * connGene.Weight
+		inputSum += neuron.Activate() * connGene.Weight
 	}
 	n.Signal = n.Activation.Fn(inputSum)
 	return n.Signal
@@ -157,7 +156,7 @@ func (n *NeuralNetwork) FeedForward(inputs []float64) ([]float64, error) {
 	// recursively propagate from input neurons to output neurons
 	outputs := make([]float64, 0, len(n.outputNeurons))
 	for _, neuron := range n.outputNeurons {
-		outputs = append(outputs, neuron.ActivateFF())
+		outputs = append(outputs, neuron.Activate())
 	}
 
 	// reset all neurons
@@ -169,8 +168,26 @@ func (n *NeuralNetwork) FeedForward(inputs []float64) ([]float64, error) {
 	return outputs, nil
 }
 
-func (n *NeuralNetwork) ResetSignals() {
-	for _, neuron := range n.Neurons {
-		neuron.Signal = 0.0
+func (n *NeuralNetwork) FeedRecurrent(inputs []float64) ([]float64, error) {
+	if len(inputs) != len(n.inputNeurons) {
+		errStr := "Invalid number of inputs: %d != %d"
+		return nil, fmt.Errorf(errStr, len(n.inputNeurons), len(inputs))
 	}
+
+	// register sensor inputs
+	for i, neuron := range n.inputNeurons {
+		neuron.Signal = inputs[i]
+	}
+
+	// recursively propagate from input neurons to output neurons
+	outputs := make([]float64, 0, len(n.outputNeurons))
+	for _, neuron := range n.outputNeurons {
+		outputs = append(outputs, neuron.Activate())
+	}
+
+	for _, neuron := range n.Neurons {
+		neuron.activated = false
+	}
+
+	return outputs, nil
 }

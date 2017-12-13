@@ -89,11 +89,11 @@ func XORTest() EvaluationFunc {
 		if score == 0 {
 			return 1.0 / 0.0001
 		}
-		
-		//if we assume, that everything > 0.5 is to be interpreted as 1 and everything below as 0, 
+
+		//if we assume, that everything > 0.5 is to be interpreted as 1 and everything below as 0,
 		//then this is enough already and produces 0 errors
 		if errors == 0 {
-			return 1.0 / 0.001
+			score /= 10.0
 		}
 		return 1.0 / score
 	}

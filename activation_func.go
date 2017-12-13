@@ -50,7 +50,7 @@ type ActivationFunc struct {
 // function. This function is only used for sensor nodes.
 func Identity() *ActivationFunc {
 	return &ActivationFunc{
-		Name: "Identity",
+		Name: "identity",
 		Fn: func(x float64) float64 {
 			return x
 		},
@@ -60,7 +60,7 @@ func Identity() *ActivationFunc {
 // Sigmoid returns the sigmoid function as an activation function.
 func Sigmoid() *ActivationFunc {
 	return &ActivationFunc{
-		Name: "Sigmoid",
+		Name: "sigmoid",
 		Fn: func(x float64) float64 {
 			return 1.0 / (1.0 + math.Exp(-x))
 		},
@@ -70,7 +70,7 @@ func Sigmoid() *ActivationFunc {
 // Tanh returns the hyperbolic tangent function as an activation function.
 func Tanh() *ActivationFunc {
 	return &ActivationFunc{
-		Name: "Tanh",
+		Name: "tanh",
 		Fn:   math.Tanh,
 	}
 }
@@ -78,7 +78,7 @@ func Tanh() *ActivationFunc {
 // Sin returns the sin function as an activation function.
 func Sin() *ActivationFunc {
 	return &ActivationFunc{
-		Name: "Sine",
+		Name: "sin",
 		Fn:   math.Sin,
 	}
 }
@@ -86,7 +86,7 @@ func Sin() *ActivationFunc {
 // Cos returns the cosine function as an activation function.
 func Cos() *ActivationFunc {
 	return &ActivationFunc{
-		Name: "Cosine",
+		Name: "cos",
 		Fn:   math.Cos,
 	}
 }
@@ -94,7 +94,7 @@ func Cos() *ActivationFunc {
 // ReLU returns a rectifier linear unit as an activation function.
 func ReLU() *ActivationFunc {
 	return &ActivationFunc{
-		Name: "ReLU",
+		Name: "relu",
 		Fn: func(x float64) float64 {
 			return math.Max(x, 0.0)
 		},
@@ -104,7 +104,7 @@ func ReLU() *ActivationFunc {
 // Log returns the log function as an activation function.
 func Log() *ActivationFunc {
 	return &ActivationFunc{
-		Name: "Log",
+		Name: "log",
 		Fn:   math.Log,
 	}
 }
@@ -112,7 +112,7 @@ func Log() *ActivationFunc {
 // Exp returns the exponential function as an activation function.
 func Exp() *ActivationFunc {
 	return &ActivationFunc{
-		Name: "Exp",
+		Name: "exp",
 		Fn:   math.Exp,
 	}
 }
@@ -120,7 +120,7 @@ func Exp() *ActivationFunc {
 // Abs returns the absolute value function as an activation function.
 func Abs() *ActivationFunc {
 	return &ActivationFunc{
-		Name: "Abs",
+		Name: "abs",
 		Fn:   math.Abs,
 	}
 }
@@ -128,7 +128,7 @@ func Abs() *ActivationFunc {
 // Square returns the square function as an activation function.
 func Square() *ActivationFunc {
 	return &ActivationFunc{
-		Name: "Square",
+		Name: "square",
 		Fn: func(x float64) float64 {
 			return x * x
 		},
@@ -138,7 +138,7 @@ func Square() *ActivationFunc {
 // Cube returns the cube function as an activation function.
 func Cube() *ActivationFunc {
 	return &ActivationFunc{
-		Name: "Cube",
+		Name: "cube",
 		Fn: func(x float64) float64 {
 			return x * x * x
 		},
@@ -149,7 +149,7 @@ func Cube() *ActivationFunc {
 // mean and a standard deviation.
 func Gaussian(mean, stdev float64) *ActivationFunc {
 	return &ActivationFunc{
-		Name: "Gaussian",
+		Name: "gaussian",
 		Fn: func(x float64) float64 {
 			return 1.0 / (stdev * math.Sqrt(2*math.Pi)) *
 				math.Exp(math.Pow((x-mean)/stdev, 2.0)/-2.0)

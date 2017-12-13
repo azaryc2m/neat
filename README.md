@@ -1,9 +1,10 @@
-![alt text](https://github.com/jinyeom/neat/blob/master/banner.png "neat")
-[![GoDoc](https://godoc.org/github.com/jinyeom/neat?status.svg)](https://godoc.org/github.com/jinyeom/neat)
-[![Go Report Card](https://goreportcard.com/badge/github.com/jinyeom/neat)](https://goreportcard.com/report/github.com/jinyeom/neat)
-[![cover.run go](https://cover.run/go/github.com/jinyeom/neat.svg)](https://cover.run/go/github.com/jinyeom/neat)
+![alt text](https://github.com/azaryc2s/neat/blob/master/banner.png "neat")
+[![GoDoc](https://godoc.org/github.com/azaryc2s/neat?status.svg)](https://godoc.org/github.com/azaryc2s/neat)
+[![Go Report Card](https://goreportcard.com/badge/github.com/azaryc2s/neat)](https://goreportcard.com/report/github.com/azaryc2s/neat)
+[![cover.run go](https://cover.run/go/github.com/azaryc2s/neat.svg)](https://cover.run/go/github.com/azaryc2s/neat)
 
-CURRENTLY NOT WORKING! There will be a further notice when it's updated.
+WORKING AGAIN!
+
 
 NEAT (NeuroEvolution of Augmenting Topologies) is a neuroevolution algorithm by 
 Dr. Kenneth O. Stanley which evolves not only neural networks' weights but also their 
@@ -15,7 +16,7 @@ paper from [here](http://nn.cs.utexas.edu/downloads/papers/stanley.ec02.pdf).
 To install `neat` run the following:
 
 ```bash
-$ go get -u github.com/jinyeom/neat
+$ go get -u github.com/azaryc2s/neat
 ```
 
 ## Usage
@@ -27,25 +28,38 @@ run.
 
 ```json
 {
-	"experimentName": "XOR Test",
+	"experimentName": "",
+	"cppnActivations": ["sigmoid"],
+	"outputActivation": "sigmoid",
 	"verbose": true,
-	"numInputs": 3,
-	"numOutputs": 1,
-	"fullyConnected": false,
-	"numGenerations": 50,
-	"populationSize": 100,
-	"initFitness": 9999.0,
-	"minimizeFitness": true,
-	"survivalRate": 0.5,
-	"stagnationLimit": 5,
-	"ratePerturb": 0.2,
-	"rateAddNode": 0.2,
-	"rateAddConn": 0.2,
-	"rateMutateChild": 0.5,
-	"distanceThreshold": 20.0,
-	"coeffUnmatching": 1.0,
-	"coeffMatching": 1.0,
-	"cppnActivations": [],
+	"numInputs": 0,
+	"numOutputs": 0,
+	"fullyConnected": true,
+	
+	"numGenerations": 0,
+	"populationSize": 0,
+	"tournamentSize": 3,
+	"initFitness": 0.0,
+	"initConnWeight": 1,
+	"survivalRate": 0.0,
+	
+	"rateCrossover": 0.0,
+	"ratePerturb": 0.0,
+	"rangeMutWeight": 0.0,
+	"capWeight": 0.0,
+	"rateAddNode": 0.0,
+	"rateAddConn": 0.0,
+	"rateEnableConn": 0.0,
+	"rateDisableConn": 0.0,
+	"rateMutateActFunc": 0.0,
+	
+	"targetSpecies": 0,
+	"stagnationLimit": 0,
+	"distanceThreshold": 0,
+	"distanceMod": 0.0,
+	"minDistanceTreshold": 0,
+	"coeffUnmatching": 0,
+	"coeffMatching": 0
 }
 ```
 
@@ -78,7 +92,9 @@ func main() {
 	// score that indicates its performance. This score is essentially a genome's
 	// fitness score. With the configuration and the evaluation function we
 	// defined, we can create a new instance of NEAT and start the evolution 
-	// process.
+	// process. The neural network will always maximize the fitness, so if you wish
+	// to minimize some fitness value, you have to return 1/fitness in this function.
+	// Note: watch out not to return 1/0 which is defined as 'Inf' in Go.
 	neat.New(config, neat.XORTest()).Run()
 }
 

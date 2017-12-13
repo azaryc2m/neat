@@ -42,12 +42,11 @@ type Config struct {
 	FullyConnected bool    `json:"fullyConnected"` // initially fully connected
 
 	// evolution settings
-	NumGenerations  int     `json:"numGenerations"`  // number of generations
-	PopulationSize  int     `json:"populationSize"`  // size of population
-	TournamentSize  int     `json:"tournamentSize"`  // size of the tournament for parent pairs at reproducing
-	InitFitness     float64 `json:"initFitness"`     // initial fitness score
-	SurvivalRate    float64 `json:"survivalRate"`    // survival rate
-	StagnationLimit int     `json:"stagnationLimit"` // limit of stagnation
+	NumGenerations int     `json:"numGenerations"` // number of generations
+	PopulationSize int     `json:"populationSize"` // size of population
+	TournamentSize int     `json:"tournamentSize"` // size of the tournament for parent pairs at reproducing
+	InitFitness    float64 `json:"initFitness"`    // initial fitness score
+	SurvivalRate   float64 `json:"survivalRate"`   // survival rate
 
 	// mutation / reproduction rates settings
 	RatePerturb       float64 `json:"ratePerturb"`       // by perturbing weights
@@ -60,13 +59,18 @@ type Config struct {
 	RateMutateActFunc float64 `json:"rateMutateActFunc"` // rate to mutate the activation function
 	RateCrossover     float64 `json:"rateCrossover"`     // crossover chance when reproducing
 
-	// compatibility distance coefficient settings
-	DistanceThreshold float64 `json:"distanceThreshold"` // distance threshold
-	CoeffUnmatching   float64 `json:"coeffUnmatching"`   // unmatching genes
-	CoeffMatching     float64 `json:"coeffMatching"`     // matching genes
+	//Speciation parameters
+	StagnationLimit     int     `json:"stagnationLimit"`     // limit of stagnation
+	TargetSpecies       int     `json:"targetSpecies"`       // target species number
+	DistanceMod         float64 `json:"distanceMod"`         // modification to distance treshold if not enough/too many species
+	MinDistanceTreshold float64 `json:"minDistanceTreshold"` // minimum distance treshold
+	DistanceThreshold   float64 `json:"distanceThreshold"`   // distance threshold
+	CoeffUnmatching     float64 `json:"coeffUnmatching"`     // unmatching genes
+	CoeffMatching       float64 `json:"coeffMatching"`       // matching genes
 
 	// CPPN settings
-	CPPNActivations []string `json:"cppnActivations"` // additional activations
+	CPPNActivations  []string `json:"cppnActivations"`  // additional activations
+	OutputActivation string   `json:"outputActivation"` // activation on the output nodes
 }
 
 // NewConfigJSON creates a new instance of Config, given the name of a JSON file
@@ -110,6 +114,7 @@ func (c *Config) Summarize() {
 	fmt.Fprintf(w, "+ Initial fitness score\t%.3f\t\n", c.InitFitness)
 	fmt.Fprintf(w, "+ Rate of survival each generation\t%.3f\t\n", c.SurvivalRate)
 	fmt.Fprintf(w, "+ Limit of species' stagnation\t%d\t\n\n", c.StagnationLimit)
+	fmt.Fprintf(w, "+ Desired number of species \t%d\t\n\n", c.TargetSpecies)
 	fmt.Fprintf(w, "+ Rate of crossover at reproduction\t%.3f\t\n\n", c.RateCrossover)
 
 	fmt.Fprintf(w, "Mutation settings\t\n")
