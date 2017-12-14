@@ -159,11 +159,7 @@ func (n *NeuralNetwork) FeedForward(inputs []float64) ([]float64, error) {
 		outputs = append(outputs, neuron.Activate())
 	}
 
-	// reset all neurons
-	for _, neuron := range n.Neurons {
-		neuron.Signal = 0.0
-		neuron.activated = false
-	}
+	n.ResetNeurons()
 
 	return outputs, nil
 }
@@ -190,4 +186,11 @@ func (n *NeuralNetwork) FeedRecurrent(inputs []float64) ([]float64, error) {
 	}
 
 	return outputs, nil
+}
+
+func (n *NeuralNetwork) ResetNeurons() {
+	for _, neuron := range n.Neurons {
+		neuron.Signal = 0.0
+		neuron.activated = false
+	}
 }
