@@ -1,32 +1,34 @@
 {
 	"experimentName": "XOR Test",
-	"cppnActivations": ["sin"],
+	"cppnActivations": ["sin, sigmoid"],
+	"outputActivation": "sigmoid"
 	"verbose": true,
 	"numInputs": 3,
 	"numOutputs": 1,
 	"fullyConnected": true,
 	
-	"numGenerations": 100,
+	"numGenerations": 250,
 	"populationSize": 50,
 	"tournamentSize": 3,
 	"initFitness": 0.0,
 	"initConnWeight": 1,
-	"minimizeFitness": false,
 	"survivalRate": 0.6,
-	"stagnationLimit": 150,
 	
 	"rateCrossover": 0.8,
 	"ratePerturb": 0.65,
-	"rangeMutWeight": 4.0,
+	"rangeMutWeight": 2.5,
 	"capWeight": 4.0,
 	"rateAddNode": 0.05,
 	"rateAddConn": 0.05,
-	"rateEnableConn": 0.15,
-	"rateDisableConn": 0.15,
-	"rateMutateChild": 0.5,
+	"rateEnableConn": 0.1,
+	"rateDisableConn": 0.1,
+	"rateMutateActFunc": 0.05,
 	
-	
+	"targetSpecies": 5,
+	"stagnationLimit": 50,
 	"distanceThreshold": 3,
+	"distanceMod": 0.2,
+	"minDistanceTreshold": 1,
 	"coeffUnmatching": 1,
 	"coeffMatching": 2
 }
