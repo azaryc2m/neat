@@ -62,7 +62,7 @@ start experiment with NEAT. Below is an example XOR experiment.
     // score that indicates its performance. This score is essentially a
     // genome's fitness score. With the configuration and the evaluation
     // function we defined, we can create a new instance of NEAT and start the
-    // evolution process. After successfull run, the function returns the best found genome.
+    // evolution process. After successful run, the function returns the best found genome.
   	best := neat.New(config, neat.XORTest()).Run()
 
   	// You can either save this genome for later use (export as Json for example)

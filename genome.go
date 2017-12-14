@@ -353,7 +353,7 @@ func (g *Genome) MutateAddConn() {
 	tries := 5
 	g.evaluated = false
 
-	//TODO: improve determining the selected nodes by substracting forbidden node types from the others
+	//TODO: improve determining the selected nodes by subtracting forbidden node types from the others
 	for try := 0; try < tries; try++ {
 		selectedNode0 := g.NodeGenes[rand.Intn(len(g.NodeGenes))]
 		selectedNode1 := g.NodeGenes[rand.Intn(len(g.NodeGenes))]
@@ -369,12 +369,10 @@ func (g *Genome) MutateAddConn() {
 			}
 		}
 
-		//			if !g.pathExists(selectedNode1, selectedNode0) {
 		g.ConnGenes = append(g.ConnGenes, &ConnGene{selectedNode0.ID,
 			selectedNode1.ID, rand.NormFloat64() * NeatConfig.InitConnWeight, false, 0, Innovation})
 		Innovation++
 		return
-		//			}
 	}
 
 }
