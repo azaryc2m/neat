@@ -54,7 +54,7 @@ func (s *Species) Register(g *Genome) {
 	g.SpeciesID = s.ID
 }
 
-// Flush empties the species membership, except for its representative 
+// Flush empties the species membership, except for its representative
 // which is being reassigned to be the most fit member at the moment
 func (s *Species) Flush() {
 	s.Representative = s.Members[0]
