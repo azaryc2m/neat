@@ -167,9 +167,14 @@ func (n *NEAT) Summarize(gen int) {
 // Evaluate evaluates fitness of every genome in the population. After the
 // evaluation, their fitness scores are recored in each genome.
 func (n *NEAT) Evaluate() {
+	c := make(chan bool)
 	for _, genome := range n.Population {
-		genome.Evaluate(n.Evaluation)
+		go func(genome *Genome) {
+			genome.Evaluate(n.Evaluation)
+			c <- true
+		}(genome)
 	}
+	emptyChannel(c, len(n.Population))
 }
 
 // Speciate performs speciation of each genome.
@@ -188,72 +193,87 @@ func (n *NEAT) Speciate() {
 	}
 
 	// Divide into Species
+	c := make(chan bool)
 	for _, genome := range n.Population {
-		registered := false
-		for i := 0; i < len(n.Species) && !registered; i++ {
-			dist := Compatibility(n.Species[i].Representative, genome,
-				n.Config.CoeffUnmatching, n.Config.CoeffMatching)
+		go func(genome *Genome) {
+			registered := false
+			for i := 0; i < len(n.Species) && !registered; i++ {
+				dist := Compatibility(n.Species[i].Representative, genome,
+					n.Config.CoeffUnmatching, n.Config.CoeffMatching)
 
-			if dist <= n.Config.DistanceThreshold {
-				n.Species[i].Register(genome)
-				registered = true
+				if dist <= n.Config.DistanceThreshold {
+					n.Species[i].Register(genome)
+					registered = true
+				}
 			}
-		}
 
-		if !registered {
-			n.Species = append(n.Species, NewSpecies(n.nextSpeciesID, genome))
-			n.nextSpeciesID++
-		}
+			if !registered {
+				n.Species = append(n.Species, NewSpecies(n.nextSpeciesID, genome))
+				n.nextSpeciesID++
+			}
+			//done
+			c <- true
+		}(genome)
 	}
+	//make sure every individual has been assigned to a species
+	emptyChannel(c, len(n.Population))
 
 	//Calculate Shared fitness
 	normSum := 0.0
 	for _, spec := range n.Species {
+		go func(spec *Species) {
 
-		if len(spec.Members) < 1 {
-			//species did extinct
-			spec.SharedFitness = 0
-			continue
-		}
-
-		fitSum := spec.Members[0].Fitness
-		spec.BestFitness = spec.Members[0].Fitness
-		for i := 1; i < len(spec.Members); i++ {
-			fitSum += spec.Members[i].Fitness
-			if spec.BestFitness < spec.Members[i].Fitness {
-				spec.BestFitness = spec.Members[i].Fitness
+			if len(spec.Members) < 1 {
+				//species did extinct
+				spec.SharedFitness = 0
+				c <- false
+				return
+				//			continue
 			}
-		}
-		//Get rid of stagnant species by setting their shared fitness
-		//to 0, so that they don't get to breed and get removed
-		//in the last step
-		if spec.BestFitness <= spec.BestEverFitness {
-			spec.Stagnation += 1
-			if spec.Stagnation >= n.Config.StagnationLimit {
-				fitSum = 0
-			}
-		} else {
-			//Reset the stagnation since the species is improving
-			spec.Stagnation = 0
-			spec.BestEverFitness = spec.BestFitness
-		}
 
-		//calculate species fitness
-		fitSum /= float64(len(spec.Members))
-		spec.SharedFitness = fitSum
-		normSum += fitSum
+			fitSum := spec.Members[0].Fitness
+			spec.BestFitness = spec.Members[0].Fitness
+			for i := 1; i < len(spec.Members); i++ {
+				fitSum += spec.Members[i].Fitness
+				if spec.BestFitness < spec.Members[i].Fitness {
+					spec.BestFitness = spec.Members[i].Fitness
+				}
+			}
+			//Get rid of stagnant species by setting their shared fitness
+			//to 0, so that they don't get to breed and get removed
+			//in the last step
+			if spec.BestFitness <= spec.BestEverFitness {
+				spec.Stagnation += 1
+				if spec.Stagnation >= n.Config.StagnationLimit {
+					fitSum = 0
+				}
+			} else {
+				//Reset the stagnation since the species is improving
+				spec.Stagnation = 0
+				spec.BestEverFitness = spec.BestFitness
+			}
+
+			//calculate species fitness
+			fitSum /= float64(len(spec.Members))
+			spec.SharedFitness = fitSum
+			normSum += fitSum
+
+			c <- true
+		}(spec)
 	}
+	emptyChannel(c, len(n.Species))
+
 	//Normalize the shared fitness and calculate offspring
 	earnedKids := make([]float64, len(n.Species))
 	remainder := n.Config.PopulationSize
-	for i := 0; i < len(n.Species); i++ {
+	for i, spec := range n.Species {
 		if normSum > 0.0 {
-			n.Species[i].SharedFitness /= normSum
+			spec.SharedFitness /= normSum
 		}
-		earnedKids[i] = n.Species[i].SharedFitness * float64(n.Config.PopulationSize)
-		n.Species[i].Offspring = int(math.Floor(earnedKids[i]))
-		earnedKids[i] -= float64(n.Species[i].Offspring)
-		remainder -= n.Species[i].Offspring
+		earnedKids[i] = spec.SharedFitness * float64(n.Config.PopulationSize)
+		spec.Offspring = int(math.Floor(earnedKids[i]))
+		earnedKids[i] -= float64(spec.Offspring)
+		remainder -= spec.Offspring
 	}
 	//Sort the array to get the most cheated species by rounding
 	//And award them with the remainder rounding error
@@ -282,70 +302,74 @@ func (n *NEAT) Speciate() {
 // then 2 genomes survive, every member survives and mutates.
 func (n *NEAT) Reproduce() {
 	nextGeneration := make([]*Genome, 0, n.Config.PopulationSize)
+	c := make(chan bool)
 	for _, s := range n.Species {
-		// genomes in this species can inherit to the next generation, if two or
-		// more genomes survive in this species, and there is room for more
-		// children, i.e., at least one genome must be eliminated.
-		numSurvived := int(math.Ceil(float64(len(s.Members)) *
-			n.Config.SurvivalRate))
+		go func(s *Species) {
+			// genomes in this species can inherit to the next generation, if two or
+			// more genomes survive in this species, and there is room for more
+			// children, i.e., at least one genome must be eliminated.
+			numSurvived := int(math.Ceil(float64(len(s.Members)) *
+				n.Config.SurvivalRate))
 
-		//Sort the members by their fitness (better first)
-		sort.Slice(s.Members, func(i, j int) bool {
-			return n.Comparison(s.Members[i], s.Members[j])
-		})
-		//and kill the weakest
-		s.Members = s.Members[:numSurvived]
+			//Sort the members by their fitness (better first)
+			sort.Slice(s.Members, func(i, j int) bool {
+				return n.Comparison(s.Members[i], s.Members[j])
+			})
+			//and kill the weakest
+			s.Members = s.Members[:numSurvived]
 
-		// Elitism
-		nextGeneration = append(nextGeneration, s.Members[0])
+			// Elitism
+			nextGeneration = append(nextGeneration, s.Members[0])
 
-		//start at 1 because we already added the best individual
-		for i := 1; i < s.Offspring; i++ {
-			//tournament
-			perm := make([]int, n.Config.TournamentSize)
-			for t := 0; t < n.Config.TournamentSize; t++ {
-				perm[t] = rand.Intn(numSurvived)
+			//start at 1 because we already added the best individual
+			for i := 1; i < s.Offspring; i++ {
+				//tournament
+				perm := make([]int, n.Config.TournamentSize)
+				for t := 0; t < n.Config.TournamentSize; t++ {
+					perm[t] = rand.Intn(numSurvived)
+				}
+				sort.Ints(perm)
+				//get the minimum index from the random generated slice (best parents)
+				p0 := s.Members[perm[0]] // parent 0
+				p1 := s.Members[perm[1]] // parent 1
+
+				// create a child from two chosen parents as a result of crossover
+				// but only with a given chance, and if the chosen parents are not the same
+				child := &Genome{}
+				if p0.ID == p1.ID || rand.Float64() > n.Config.RateCrossover {
+					child = p0.Copy()
+					child.ID = n.nextGenomeID
+					n.nextGenomeID++
+				} else {
+					child = Crossover(n.nextGenomeID, p0, p1, n.Config.InitFitness)
+					n.nextGenomeID++
+				}
+
+				// this mutations are per item. So for example the chance to mutate
+				// a connection is checked for every connection, not just once
+				child.MutateDisEnConn(n.Config.RateEnableConn, n.Config.RateDisableConn)
+				child.MutatePerturb(n.Config.RatePerturb, n.Config.RangeMutWeight, n.Config.CapWeight)
+
+				//this mutations are checked once, so we check it here
+				if rand.Float64() < n.Config.RateAddNode && len(child.ConnGenes) != 0 {
+					child.MutateAddNode(n.nextGenomeID, n.randActivationFunc())
+					n.nextGenomeID++
+				}
+
+				if rand.Float64() < n.Config.RateAddConn {
+					child.MutateAddConn()
+				}
+
+				if len(child.HiddenNodes) > 0 && rand.Float64() < n.Config.RateMutateActFunc {
+					child.MutateActFunc(n.nextGenomeID, n.Activations)
+					n.nextGenomeID++
+				}
+				nextGeneration = append(nextGeneration, child)
 			}
-			sort.Ints(perm)
-			//get the minimum index from the random generated slice (best parents)
-			p0 := s.Members[perm[0]] // parent 0
-			p1 := s.Members[perm[1]] // parent 1
-
-			// create a child from two chosen parents as a result of crossover
-			// but only with a given chance, and if the chosen parents are not the same
-			child := &Genome{}
-			if p0.ID == p1.ID || rand.Float64() > n.Config.RateCrossover {
-				child = p0.Copy()
-				child.ID = n.nextGenomeID
-				n.nextGenomeID++
-			} else {
-				child = Crossover(n.nextGenomeID, p0, p1, n.Config.InitFitness)
-				n.nextGenomeID++
-			}
-
-			// this mutations are per item. So for example the chance to mutate
-			// a connection is checked for every connection, not just once
-			child.MutateDisEnConn(n.Config.RateEnableConn, n.Config.RateDisableConn)
-			child.MutatePerturb(n.Config.RatePerturb, n.Config.RangeMutWeight, n.Config.CapWeight)
-
-			//this mutations are checked once, so we check it here
-			if rand.Float64() < n.Config.RateAddNode && len(child.ConnGenes) != 0 {
-				child.MutateAddNode(n.nextGenomeID, n.randActivationFunc())
-				n.nextGenomeID++
-			}
-
-			if rand.Float64() < n.Config.RateAddConn {
-				child.MutateAddConn()
-			}
-
-			if len(child.HiddenNodes) > 0 && rand.Float64() < n.Config.RateMutateActFunc {
-				child.MutateActFunc(n.nextGenomeID, n.Activations)
-				n.nextGenomeID++
-			}
-			nextGeneration = append(nextGeneration, child)
-		}
+			c <- true
+		}(s)
 	}
-
+	emptyChannel(c, len(n.Species))
 	// update the population with the new generation
 	n.Population = nextGeneration
 }
@@ -397,4 +421,10 @@ func (n *NEAT) Run() *Genome {
 	}
 
 	return n.Best
+}
+
+func emptyChannel(c <-chan bool, n int) {
+	for i := 0; i < n; i++ {
+		<-c
+	}
 }
