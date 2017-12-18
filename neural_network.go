@@ -40,6 +40,7 @@ func NewNeuron(nodeGene *NodeGene) *Neuron {
 		ID:         nodeGene.ID,
 		Type:       nodeGene.Type,
 		Signal:     0.0,
+		ConnGenes:  make(map[int]*ConnGene),
 		Synapses:   make(map[int]*Neuron),
 		Activation: nodeGene.Activation,
 		activated:  false,
