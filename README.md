@@ -63,8 +63,8 @@ run.
 }
 ```
 
-Now that you have the configuration JSON file is ready as `config.json`, we can
-start experiment with NEAT. Below is an example XOR experiment.
+Now that you have the configuration JSON file ready as `config.json`, we can
+start working with NEAT. Below is an example XOR experiment.
 
 ```go
 package main
@@ -75,7 +75,7 @@ import (
 
 	// Import NEAT package after installing the package through
 	// the instruction provided above.
-	"github.com/jinyeom/neat"
+	"github.com/azaryc2s/neat"
 )
 
 func main() {
